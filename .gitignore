@@ -1,0 +1,38 @@
+# ── .NET ─────────────────────────────────────────────────────────────────────
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.log
+
+# ── ASP.NET / Entity Framework ────────────────────────────────────────────────
+# Keep migrations but ignore generated EF files
+*_ef_cache/
+
+# ── Sensitive config (never commit real secrets) ──────────────────────────────
+# appsettings.json has your OpenAI key & DB password — keep it local
+backend/src/ConstructionWidget.Api/appsettings.json
+
+# ── Node / npm ────────────────────────────────────────────────────────────────
+node_modules/
+.npm/
+npm-debug.log*
+
+# ── Next.js ──────────────────────────────────────────────────────────────────
+frontend/admin-dashboard/.next/
+frontend/admin-dashboard/out/
+
+# ── Vite / Widget build output ────────────────────────────────────────────────
+frontend/widget/dist/
+
+# ── Environment files ─────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+# Keep .env.example files
+
+# ── OS files ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

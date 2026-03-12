@@ -1,0 +1,165 @@
+using System.Globalization;
+using ConstructionWidget.Core.Interfaces;
+using ConstructionWidget.Core.Models;
+using ConstructionWidget.Infrastructure.Data;
+using CsvHelper;
+using CsvHelper.Configuration;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
+
+namespace ConstructionWidget.Infrastructure.Services;
+
+public class EstimateService : IEstimateService
+{
+    private readonly AppDbContext _db;
+    private readonly ITenantContext _tenantContext;
+    private readonly ILogger<EstimateService> _logger;
+
+    private static readonly Dictionary<string, double> UnitToFeet = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["mm"] = 1.0 / 304.8,
+        ["cm"] = 1.0 / 30.48,
+        ["m"]  = 3.28084,
+        ["ft"] = 1.0,
+        ["in"] = 1.0 / 12.0
+    };
+
+    public EstimateService(AppDbContext db, ITenantContext tenantContext, ILogger<EstimateService> logger)
+    {
+        _db = db;
+        _tenantContext = tenantContext;
+        _logger = logger;
+    }
+
+    public async Task<decimal> CalculatePriceAsync(
+        string category, double width, double height, string material, string unit = "ft")
+    {
+        if (!UnitToFeet.TryGetValue(unit, out var factor))
+            factor = 1.0;
+
+        var widthFt = width * factor;
+        var heightFt = height * factor;
+        var sqFt = (decimal)(widthFt * heightFt);
+
+        var tenantId = _tenantContext.TenantId;
+        var tenant = await _db.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == tenantId)
+            ?? throw new InvalidOperationException($"Tenant {tenantId} not found");
+
+        var config = ParseConfig(tenant.PricingConfig);
+
+        if (config.Categories.Count == 0)
+            throw new InvalidOperationException(
+                "No price list has been configured yet. Please upload a CSV price list in the admin dashboard.");
+
+        var categoryKey = config.Categories.Keys
+            .FirstOrDefault(k => k.Equals(category, StringComparison.OrdinalIgnoreCase));
+
+        if (categoryKey is null)
+        {
+            var available = string.Join(", ", config.Categories.Keys);
+            throw new InvalidOperationException(
+                $"Category '{category}' not found. Available categories: {available}.");
+        }
+
+        var materialKey = config.Categories[categoryKey].Materials.Keys
+            .FirstOrDefault(k => k.Equals(material, StringComparison.OrdinalIgnoreCase));
+
+        if (materialKey is null)
+        {
+            var available = string.Join(", ", config.Categories[categoryKey].Materials.Keys);
+            throw new InvalidOperationException(
+                $"Material '{material}' not found in category '{category}'. Available materials: {available}.");
+        }
+
+        var pricing = config.Categories[categoryKey].Materials[materialKey];
+
+        var rawPrice = pricing.BasePrice + sqFt * pricing.PricePerSqFt;
+        var withLabor = rawPrice + config.LaborFixedCost;
+        var withMarkup = withLabor * (1 + config.MarkupPercentage / 100m);
+        var final = pricing.MinimumPrice.HasValue
+            ? Math.Max(withMarkup, pricing.MinimumPrice.Value)
+            : withMarkup;
+
+        return Math.Round(final, 2);
+    }
+
+    public async Task UpdatePriceListAsync(Guid tenantId, string csvContent)
+    {
+        var config = new PricingConfig();
+
+        var csvConfig = new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            HasHeaderRecord = true,
+            MissingFieldFound = null
+        };
+
+        using var reader = new StringReader(csvContent);
+        using var csv = new CsvReader(reader, csvConfig);
+        await csv.ReadAsync();
+        csv.ReadHeader();
+
+        while (await csv.ReadAsync())
+        {
+            var category = csv.GetField("Category")?.Trim() ?? "";
+            var material = csv.GetField("Material")?.Trim() ?? "";
+
+            if (string.Equals(category, "GLOBAL", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.Equals(material, "MarkupPercentage", StringComparison.OrdinalIgnoreCase))
+                    config.MarkupPercentage = ParseDecimal(csv.GetField("BasePrice"));
+                else if (string.Equals(material, "LaborFixedCost", StringComparison.OrdinalIgnoreCase))
+                    config.LaborFixedCost = ParseDecimal(csv.GetField("BasePrice"));
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(category) || string.IsNullOrEmpty(material))
+                continue;
+
+            if (!config.Categories.TryGetValue(category, out var categoryPricing))
+            {
+                categoryPricing = new CategoryPricing();
+                config.Categories[category] = categoryPricing;
+            }
+
+            var minPriceStr = csv.GetField("MinimumPrice");
+            decimal? minPrice = string.IsNullOrEmpty(minPriceStr)
+                ? null
+                : decimal.Parse(minPriceStr, CultureInfo.InvariantCulture);
+
+            categoryPricing.Materials[material] = new MaterialPricing
+            {
+                BasePrice = ParseDecimal(csv.GetField("BasePrice")),
+                PricePerSqFt = ParseDecimal(csv.GetField("PricePerSqFt")),
+                MinimumPrice = minPrice
+            };
+        }
+
+        var tenant = await _db.Tenants.FindAsync(tenantId)
+            ?? throw new InvalidOperationException($"Tenant {tenantId} not found");
+
+        tenant.PricingConfig = JsonSerializer.Serialize(config);
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task<PricingConfig?> GetPricingConfigAsync(Guid tenantId)
+    {
+        var tenant = await _db.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == tenantId);
+        if (tenant is null) return null;
+        return ParseConfig(tenant.PricingConfig);
+    }
+
+    private static PricingConfig ParseConfig(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return new PricingConfig();
+
+        return JsonSerializer.Deserialize<PricingConfig>(
+            json,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+            ?? new PricingConfig();
+    }
+
+    private static decimal ParseDecimal(string? value)
+        => decimal.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : 0m;
+}

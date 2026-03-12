@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Widget Test Page</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 60px auto; padding: 0 20px; }
+    h1 { color: #1e293b; }
+    p { color: #64748b; line-height: 1.6; }
+    .product { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 16px 0; }
+  </style>
+</head>
+<body>
+  <h1>Acme Windows & Doors</h1>
+  <p>Premium windows, doors, and fencing for residential and commercial projects.</p>
+
+  <div class="product">
+    <h3>🪟 Windows</h3>
+    <p>Available in vinyl, aluminum, and wood. Custom sizes available.</p>
+  </div>
+  <div class="product">
+    <h3>🚪 Doors</h3>
+    <p>Steel, fiberglass, and wood options for all budgets.</p>
+  </div>
+  <div class="product">
+    <h3>🌿 Fencing</h3>
+    <p>Durable fencing solutions for your property.</p>
+  </div>
+
+  <!-- Sales Widget Embed -->
+  <div id="sales-widget"></div>
+  <script>
+    window.SalesWidgetConfig = {
+      tenantId: "c3dcc880-2e23-4730-9873-8f9e4f2c27b0",
+      apiUrl: "http://localhost:5032"
+    };
+  </script>
+  <script src="http://localhost:5032/widget.js"></script>
+</body>
+</html>

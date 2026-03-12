@@ -1,0 +1,12 @@
+Category,Material,BasePrice,PricePerSqFt,MinimumPrice
+windows,vinyl,150,8.50,250
+windows,aluminum,200,12.00,350
+windows,wood,300,18.00,450
+doors,steel,400,20.00,500
+doors,fiberglass,500,25.00,650
+doors,wood,450,22.00,550
+fencing,vinyl,80,5.00,150
+fencing,aluminum,100,7.00,200
+fencing,wood,60,4.00,120
+GLOBAL,MarkupPercentage,15,,
+GLOBAL,LaborFixedCost,75,,
