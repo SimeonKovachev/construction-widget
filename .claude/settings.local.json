@@ -47,7 +47,11 @@
       "Bash(dotnet add src/ConstructionWidget.Api/ConstructionWidget.Api.csproj package Microsoft.IdentityModel.Protocols --version 8.16.0)",
       "Bash(dotnet add src/ConstructionWidget.Api/ConstructionWidget.Api.csproj package Microsoft.IdentityModel.Protocols.OpenIdConnect --version 8.16.0)",
       "Bash(dotnet publish src/ConstructionWidget.Api -c Release -o /tmp/apipublish)",
-      "Bash(dotnet build src/ConstructionWidget.Api -c Debug)"
+      "Bash(dotnet build src/ConstructionWidget.Api -c Debug)",
+      "Bash(dotnet build src/ConstructionWidget.Infrastructure/ConstructionWidget.Infrastructure.csproj --no-restore -v q)",
+      "Bash(dotnet build --no-restore -v q)",
+      "Bash(dotnet build src/ConstructionWidget.Core/ConstructionWidget.Core.csproj --no-restore -v q)",
+      "Bash(dotnet build src/ConstructionWidget.Api/ConstructionWidget.Api.csproj --no-restore -v q)"
     ]
   }
 }

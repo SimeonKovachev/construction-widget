@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using ConstructionWidget.Core.Entities;
 using ConstructionWidget.Core.Interfaces;
 using ConstructionWidget.Infrastructure.Services;
 using Microsoft.AspNetCore.SignalR;
@@ -8,8 +9,8 @@ namespace ConstructionWidget.Api.Hubs;
 public class ChatHub : Hub
 {
     private readonly IOpenAiChatService _chatService;
-    private readonly TenantContext _tenantContext;   // concrete — can call SetTenant
-    private readonly ITenantRepository _tenantRepo;
+    private readonly TenantContext      _tenantContext;   // concrete — can call SetTenant
+    private readonly ITenantRepository  _tenantRepo;
 
     public ChatHub(
         IOpenAiChatService chatService,
@@ -24,19 +25,23 @@ public class ChatHub : Hub
     /// <summary>
     /// Streams AI response chunks for a typewriter effect.
     ///
-    /// WHY we resolve tenant here (not in OnConnectedAsync):
-    /// SignalR creates a NEW DI scope per hub-method invocation, so any state
-    /// written to a scoped service in OnConnectedAsync is discarded before
-    /// SendMessage runs.  We read the tenantId from the persistent HTTP context
-    /// (the WebSocket upgrade request URL) inside this method instead.
+    /// WHY we resolve tenant here (not OnConnectedAsync):
+    ///   SignalR creates a NEW DI scope per hub-method invocation, so any state
+    ///   written in OnConnectedAsync is discarded before SendMessage runs.
+    ///
+    /// WHY we cache in Context.Items:
+    ///   HubCallerContext.Items persists for the ENTIRE WebSocket connection lifetime.
+    ///   Storing the resolved Tenant there means the DB lookup happens ONCE per
+    ///   WebSocket connection, not once per message — a meaningful saving on
+    ///   multi-turn chats where the user sends several messages.
     /// </summary>
     public async IAsyncEnumerable<string> SendMessage(
         string sessionId,
         string message,
         [EnumeratorCancellation] CancellationToken ct)
     {
-        // ── Resolve tenant for this invocation scope ──────────────────────────
-        if (!_tenantContext.IsResolved)
+        // ── Resolve tenant — DB only on first message per connection ──────────
+        if (!Context.Items.ContainsKey("Tenant"))
         {
             var tenantIdStr = Context.GetHttpContext()
                                      ?.Request.Query["tenantId"]
@@ -46,22 +51,25 @@ public class ChatHub : Hub
             {
                 var tenant = await _tenantRepo.GetByIdAsync(tenantId);
                 if (tenant is { IsActive: true })
-                    _tenantContext.SetTenant(tenant);
+                    Context.Items["Tenant"] = tenant;   // cached for all future messages
             }
         }
 
-        if (!_tenantContext.IsResolved)
+        if (Context.Items["Tenant"] is not Tenant resolvedTenant)
         {
             yield return "[Error: Tenant not configured. Please check your widget setup.]";
             yield break;
         }
+
+        // Set on the scoped TenantContext for this DI scope
+        _tenantContext.SetTenant(resolvedTenant);
 
         if (string.IsNullOrWhiteSpace(message))
             yield break;
 
         // ── Stream AI response ────────────────────────────────────────────────
         await foreach (var chunk in _chatService.StreamResponseAsync(
-                           _tenantContext.TenantId, sessionId, message, ct))
+                           resolvedTenant.Id, sessionId, message, ct))
         {
             yield return chunk;
         }

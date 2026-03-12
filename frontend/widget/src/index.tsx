@@ -10,13 +10,35 @@ declare global {
   }
 }
 
-// CSS injected into Shadow DOM
+// CSS injected into Shadow DOM — all animations for the chat widget live here.
+// They MUST be defined inside the Shadow DOM <style> tag; external stylesheets
+// and host-page keyframes are not visible inside the shadow boundary.
 const WIDGET_CSS = `
   * { box-sizing: border-box; }
+
+  /* Typing indicator: 3 dots bounce sequentially */
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0);    opacity: 0.4; }
+    30%           { transform: translateY(-6px);  opacity: 1;   }
+  }
+
+  /* Blinking cursor shown while AI text is streaming */
   @keyframes blink {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
+    50%      { opacity: 0; }
   }
+
+  /* Pulsing green dot in header "Typing..." status */
+  @keyframes pulse {
+    0%, 100% { opacity: 1;    transform: scale(1);    }
+    50%      { opacity: 0.35; transform: scale(0.75); }
+  }
+
+  /* Spinner on the send button while streaming */
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
   :host {
     all: initial;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;

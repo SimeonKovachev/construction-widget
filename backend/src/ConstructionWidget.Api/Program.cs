@@ -7,7 +7,9 @@ using ConstructionWidget.Infrastructure.Repositories;
 using ConstructionWidget.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using OpenAI;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +32,15 @@ builder.Services.AddScoped<ILeadNotificationService, LeadNotificationService>();
 builder.Services.AddScoped<ILeadRepository, LeadRepository>();
 builder.Services.AddScoped<ITenantRepository, TenantRepository>();
 builder.Services.AddScoped<AuthService>();
+
+// ─── Caching + Singleton OpenAI client ───────────────────────────────────────
+builder.Services.AddMemoryCache();
+
+builder.Services.AddSingleton<OpenAIClient>(sp =>
+{
+    var opts = sp.GetRequiredService<IOptions<OpenAiOptions>>().Value;
+    return new OpenAIClient(opts.ApiKey);
+});
 
 // ─── JWT Authentication ───────────────────────────────────────────────────────
 var jwtSecret = builder.Configuration["Jwt:Secret"]

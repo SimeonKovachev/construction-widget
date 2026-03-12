@@ -29,19 +29,45 @@ export default function MessageList({ messages }: { messages: ChatMessage[] }) {
               lineHeight: "1.5",
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
+              minHeight: "40px",
+              display: "flex",
+              alignItems: "center",
             }}
           >
-            {msg.content || (msg.streaming ? "" : "")}
-            {msg.streaming && (
+            {msg.content && <span>{msg.content}</span>}
+
+            {/* While streaming with no content yet: show 3 bouncing dots.
+                This appears immediately when the user sends a message —
+                before OpenAI returns the first token. */}
+            {msg.streaming && msg.content === "" && (
+              <span style={{ display: "inline-flex", gap: "5px", alignItems: "center", padding: "2px 0" }}>
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      backgroundColor: "#94a3b8",
+                      display: "inline-block",
+                      animation: `bounce 1.2s ease-in-out ${i * 0.15}s infinite`,
+                    }}
+                  />
+                ))}
+              </span>
+            )}
+
+            {/* While streaming with content: show a blinking cursor after the last character */}
+            {msg.streaming && msg.content !== "" && (
               <span
                 style={{
                   display: "inline-block",
-                  width: "8px",
-                  height: "14px",
-                  backgroundColor: "#6b7280",
+                  width: "2px",
+                  height: "1em",
+                  backgroundColor: "#374151",
                   marginLeft: "2px",
-                  verticalAlign: "middle",
-                  animation: "blink 1s step-end infinite",
+                  verticalAlign: "text-bottom",
+                  animation: "blink 0.8s step-end infinite",
                 }}
               />
             )}

@@ -5,6 +5,7 @@ using ConstructionWidget.Infrastructure.Data;
 using CsvHelper;
 using CsvHelper.Configuration;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
@@ -14,7 +15,13 @@ public class EstimateService : IEstimateService
 {
     private readonly AppDbContext _db;
     private readonly ITenantContext _tenantContext;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<EstimateService> _logger;
+
+    // Cache entries survive 15 minutes of inactivity.
+    // Evicted immediately on UpdatePriceListAsync so admin uploads apply instantly.
+    private static readonly MemoryCacheEntryOptions PricingCacheOptions =
+        new() { SlidingExpiration = TimeSpan.FromMinutes(15) };
 
     private static readonly Dictionary<string, double> UnitToFeet = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -25,11 +32,16 @@ public class EstimateService : IEstimateService
         ["in"] = 1.0 / 12.0
     };
 
-    public EstimateService(AppDbContext db, ITenantContext tenantContext, ILogger<EstimateService> logger)
+    public EstimateService(
+        AppDbContext db,
+        ITenantContext tenantContext,
+        IMemoryCache cache,
+        ILogger<EstimateService> logger)
     {
-        _db = db;
+        _db            = db;
         _tenantContext = tenantContext;
-        _logger = logger;
+        _cache         = cache;
+        _logger        = logger;
     }
 
     public async Task<decimal> CalculatePriceAsync(
@@ -38,15 +50,15 @@ public class EstimateService : IEstimateService
         if (!UnitToFeet.TryGetValue(unit, out var factor))
             factor = 1.0;
 
-        var widthFt = width * factor;
+        var widthFt  = width  * factor;
         var heightFt = height * factor;
-        var sqFt = (decimal)(widthFt * heightFt);
+        var sqFt     = (decimal)(widthFt * heightFt);
 
+        // Share the cached PricingConfig — previously CalculatePriceAsync made its OWN
+        // DB query even though BuildChatContextAsync had just loaded the same data.
         var tenantId = _tenantContext.TenantId;
-        var tenant = await _db.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == tenantId)
+        var config   = await GetPricingConfigAsync(tenantId)
             ?? throw new InvalidOperationException($"Tenant {tenantId} not found");
-
-        var config = ParseConfig(tenant.PricingConfig);
 
         if (config.Categories.Count == 0)
             throw new InvalidOperationException(
@@ -72,12 +84,11 @@ public class EstimateService : IEstimateService
                 $"Material '{material}' not found in category '{category}'. Available materials: {available}.");
         }
 
-        var pricing = config.Categories[categoryKey].Materials[materialKey];
-
-        var rawPrice = pricing.BasePrice + sqFt * pricing.PricePerSqFt;
-        var withLabor = rawPrice + config.LaborFixedCost;
+        var pricing    = config.Categories[categoryKey].Materials[materialKey];
+        var rawPrice   = pricing.BasePrice + sqFt * pricing.PricePerSqFt;
+        var withLabor  = rawPrice + config.LaborFixedCost;
         var withMarkup = withLabor * (1 + config.MarkupPercentage / 100m);
-        var final = pricing.MinimumPrice.HasValue
+        var final      = pricing.MinimumPrice.HasValue
             ? Math.Max(withMarkup, pricing.MinimumPrice.Value)
             : withMarkup;
 
@@ -90,12 +101,12 @@ public class EstimateService : IEstimateService
 
         var csvConfig = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
-            HasHeaderRecord = true,
+            HasHeaderRecord   = true,
             MissingFieldFound = null
         };
 
         using var reader = new StringReader(csvContent);
-        using var csv = new CsvReader(reader, csvConfig);
+        using var csv    = new CsvReader(reader, csvConfig);
         await csv.ReadAsync();
         csv.ReadHeader();
 
@@ -129,7 +140,7 @@ public class EstimateService : IEstimateService
 
             categoryPricing.Materials[material] = new MaterialPricing
             {
-                BasePrice = ParseDecimal(csv.GetField("BasePrice")),
+                BasePrice    = ParseDecimal(csv.GetField("BasePrice")),
                 PricePerSqFt = ParseDecimal(csv.GetField("PricePerSqFt")),
                 MinimumPrice = minPrice
             };
@@ -140,14 +151,32 @@ public class EstimateService : IEstimateService
 
         tenant.PricingConfig = JsonSerializer.Serialize(config);
         await _db.SaveChangesAsync();
+
+        // Evict the cached config so the AI picks up new pricing on the next message.
+        _cache.Remove(PricingCacheKey(tenantId));
+        _logger.LogInformation("Price list updated for tenant {TenantId}; cache evicted.", tenantId);
     }
 
     public async Task<PricingConfig?> GetPricingConfigAsync(Guid tenantId)
     {
+        var key = PricingCacheKey(tenantId);
+
+        // Fast path — return cached parsed object, skip DB entirely
+        if (_cache.TryGetValue(key, out PricingConfig? cached))
+            return cached;
+
+        // Cache miss — fetch from DB, parse, and cache
         var tenant = await _db.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == tenantId);
         if (tenant is null) return null;
-        return ParseConfig(tenant.PricingConfig);
+
+        var config = ParseConfig(tenant.PricingConfig);
+        _cache.Set(key, config, PricingCacheOptions);
+        return config;
     }
+
+    // ── Internal helpers ──────────────────────────────────────────────────────
+
+    private static string PricingCacheKey(Guid tenantId) => $"pricing:{tenantId}";
 
     private static PricingConfig ParseConfig(string? json)
     {

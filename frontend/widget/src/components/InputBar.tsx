@@ -79,7 +79,7 @@ export default function InputBar({ onSend, disabled }: InputBarProps) {
           backgroundColor: "#2563eb",
           border: "none",
           cursor: disabled || !text.trim() ? "not-allowed" : "pointer",
-          opacity: disabled || !text.trim() ? 0.5 : 1,
+          opacity: disabled || !text.trim() ? 0.7 : 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -87,9 +87,23 @@ export default function InputBar({ onSend, disabled }: InputBarProps) {
           transition: "opacity 0.15s",
         }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-        </svg>
+        {disabled ? (
+          /* Spinning loader replaces the arrow while AI is responding */
+          <div
+            style={{
+              width: "16px",
+              height: "16px",
+              border: "2px solid rgba(255,255,255,0.3)",
+              borderTopColor: "white",
+              borderRadius: "50%",
+              animation: "spin 0.7s linear infinite",
+            }}
+          />
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+          </svg>
+        )}
       </button>
     </div>
   );

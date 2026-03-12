@@ -27,13 +27,13 @@ public class OpenAiChatService : IOpenAiChatService
     private readonly ILeadRepository           _leadRepo;
     private readonly ILeadNotificationService  _notificationService;
     private readonly ITenantContext            _tenantContext;
+    private readonly OpenAIClient              _openAiClient;   // singleton — injected, not newed
     private readonly OpenAiOptions             _options;
     private readonly ILogger<OpenAiChatService> _logger;
 
     private const int MaxToolRounds = 6;
 
-    // Scoped service = one instance per SignalR invocation.
-    // This flag prevents the model from calling save_lead more than once per turn.
+    // Scoped per SignalR invocation — prevents save_lead being called more than once.
     private bool _leadSavedThisRequest = false;
 
     // ── save_lead tool schema never changes ───────────────────────────────────
@@ -45,22 +45,10 @@ public class OpenAiChatService : IOpenAiChatService
         {
           "type": "object",
           "properties": {
-            "customer_name": {
-              "type": "string",
-              "description": "Customer's full name"
-            },
-            "phone": {
-              "type": "string",
-              "description": "Customer's phone number"
-            },
-            "requirements": {
-              "type": "string",
-              "description": "Brief summary of what the customer wants (product, size, material)"
-            },
-            "quoted_price": {
-              "type": "number",
-              "description": "The price that was quoted to the customer"
-            }
+            "customer_name": { "type": "string", "description": "Customer's full name" },
+            "phone":         { "type": "string", "description": "Customer's phone number" },
+            "requirements":  { "type": "string", "description": "Brief summary of what the customer wants" },
+            "quoted_price":  { "type": "number", "description": "The price that was quoted to the customer" }
           },
           "required": ["customer_name", "phone", "requirements", "quoted_price"]
         }
@@ -73,6 +61,7 @@ public class OpenAiChatService : IOpenAiChatService
         ILeadRepository leadRepo,
         ILeadNotificationService notificationService,
         ITenantContext tenantContext,
+        OpenAIClient openAiClient,             // singleton registered in Program.cs
         IOptions<OpenAiOptions> options,
         ILogger<OpenAiChatService> logger)
     {
@@ -81,15 +70,15 @@ public class OpenAiChatService : IOpenAiChatService
         _leadRepo            = leadRepo;
         _notificationService = notificationService;
         _tenantContext       = tenantContext;
+        _openAiClient        = openAiClient;
         _options             = options.Value;
         _logger              = logger;
     }
 
-    // ── Build dynamic system prompt + tool from the tenant's actual price list ─
-    // This ensures the AI knows EXACTLY which categories and materials exist,
-    // and never references hardcoded "windows / doors / fencing".
+    // ── Build dynamic system prompt + calculate_price tool from tenant's price list ─
     private async Task<(string systemPrompt, ChatTool calculatePriceTool)> BuildChatContextAsync(Guid tenantId)
     {
+        // GetPricingConfigAsync is now cached — no DB hit after first call per tenant
         var config = await _estimateService.GetPricingConfigAsync(tenantId);
 
         var sb = new StringBuilder();
@@ -117,7 +106,7 @@ public class OpenAiChatService : IOpenAiChatService
         else
         {
             sb.Append("No product catalog has been configured yet. ");
-            sb.Append("If the customer asks for a price quote, politely explain that pricing is not set up yet and suggest they contact the company directly. ");
+            sb.Append("If the customer asks for a price quote, politely explain that pricing is not set up yet. ");
             categoryDescription = "Product category (e.g. \"windows\", \"doors\", \"fencing\")";
         }
 
@@ -126,7 +115,6 @@ public class OpenAiChatService : IOpenAiChatService
         sb.Append("Call 'save_lead' EXACTLY ONCE — only after you have both name and phone. Never call it more than once. ");
         sb.Append("Be concise, warm, and professional.");
 
-        // Escape any double-quotes in categoryDescription for embedding in a JSON string
         var safeDesc = categoryDescription.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
         var calculatePriceTool = ChatTool.CreateFunctionTool(
@@ -135,27 +123,11 @@ public class OpenAiChatService : IOpenAiChatService
             BinaryData.FromString($@"{{
   ""type"": ""object"",
   ""properties"": {{
-    ""category"": {{
-      ""type"": ""string"",
-      ""description"": ""{safeDesc}""
-    }},
-    ""width"": {{
-      ""type"": ""number"",
-      ""description"": ""Width of the product (numeric value only — no units)""
-    }},
-    ""height"": {{
-      ""type"": ""number"",
-      ""description"": ""Height of the product (numeric value only — no units)""
-    }},
-    ""material"": {{
-      ""type"": ""string"",
-      ""description"": ""Material type matching one of the configured materials for the chosen category""
-    }},
-    ""unit"": {{
-      ""type"": ""string"",
-      ""enum"": [""mm"", ""cm"", ""m"", ""ft"", ""in""],
-      ""description"": ""Unit of measurement the customer used""
-    }}
+    ""category"": {{ ""type"": ""string"", ""description"": ""{safeDesc}"" }},
+    ""width"":    {{ ""type"": ""number"", ""description"": ""Width of the product (numeric value only — no units)"" }},
+    ""height"":   {{ ""type"": ""number"", ""description"": ""Height of the product (numeric value only — no units)"" }},
+    ""material"": {{ ""type"": ""string"", ""description"": ""Material type matching one of the configured materials for the chosen category"" }},
+    ""unit"":     {{ ""type"": ""string"", ""enum"": [""mm"", ""cm"", ""m"", ""ft"", ""in""], ""description"": ""Unit of measurement the customer used"" }}
   }},
   ""required"": [""category"", ""width"", ""height"", ""material"", ""unit""]
 }}"));
@@ -172,12 +144,13 @@ public class OpenAiChatService : IOpenAiChatService
     {
         var (systemPrompt, calculatePriceTool) = await BuildChatContextAsync(tenantId);
 
-        var history = await LoadHistoryAsync(tenantId, sessionId, systemPrompt);
+        // LoadHistoryAsync now returns the Conversation entity too — we pass it to
+        // SaveHistoryAsync so it doesn't need to re-query the same row.
+        var (history, existingConv) = await LoadHistoryAsync(tenantId, sessionId, systemPrompt);
         history.Add(new UserChatMessage(userMessage));
 
-        var chatClient = new OpenAIClient(_options.ApiKey)
-                             .GetChatClient(_options.Model);
-
+        // Reuse the singleton OpenAI client — no new HTTP client setup per message
+        var chatClient  = _openAiClient.GetChatClient(_options.Model);
         var chatOptions = new ChatCompletionOptions
         {
             Tools = { calculatePriceTool, SaveLeadTool }
@@ -187,17 +160,13 @@ public class OpenAiChatService : IOpenAiChatService
         for (int round = 0; round < MaxToolRounds && !ct.IsCancellationRequested; round++)
         {
             var textBuffer = new StringBuilder();
-
-            // key = tool-call index (0, 1, 2…), value = accumulated delta buffers
-            var toolMap = new Dictionary<int, ToolCallBuffer>();
-
+            var toolMap    = new Dictionary<int, ToolCallBuffer>();
             var finishReason = ChatFinishReason.Stop;
 
             // ── Stream one completion ────────────────────────────────────────
             await foreach (var update in chatClient.CompleteChatStreamingAsync(
                                history, chatOptions, ct))
             {
-                // 1. Stream text tokens straight to the client
                 foreach (var part in update.ContentUpdate)
                 {
                     if (!string.IsNullOrEmpty(part.Text))
@@ -207,9 +176,9 @@ public class OpenAiChatService : IOpenAiChatService
                     }
                 }
 
-                // 2. Accumulate tool-call deltas by index
-                //    FIX: BinaryData.ToString() crashes when internal byte[] is null.
-                //         Use ToArray() first and only convert if bytes are present.
+                // Accumulate tool-call deltas by index.
+                // BinaryData.ToString() crashes when internal byte[] is null on empty chunks.
+                // Use ToArray() + length check to avoid that.
                 foreach (var td in update.ToolCallUpdates)
                 {
                     if (!toolMap.TryGetValue(td.Index, out var buf))
@@ -220,7 +189,7 @@ public class OpenAiChatService : IOpenAiChatService
 
                     if (td.FunctionArgumentsUpdate is { } argData)
                     {
-                        var bytes = argData.ToArray(); // never throws
+                        var bytes = argData.ToArray();
                         if (bytes.Length > 0)
                             buf.Args.Append(Encoding.UTF8.GetString(bytes));
                     }
@@ -233,11 +202,9 @@ public class OpenAiChatService : IOpenAiChatService
             // ── Handle tool calls ────────────────────────────────────────────
             if (finishReason == ChatFinishReason.ToolCalls && toolMap.Count > 0)
             {
-                // Add any leading text the model emitted before the tool call
                 if (textBuffer.Length > 0)
                     history.Add(new AssistantChatMessage(textBuffer.ToString()));
 
-                // Build the assistant tool-call message
                 var toolCalls = toolMap
                     .OrderBy(kv => kv.Key)
                     .Select(kv => ChatToolCall.CreateFunctionToolCall(
@@ -248,7 +215,6 @@ public class OpenAiChatService : IOpenAiChatService
 
                 history.Add(new AssistantChatMessage(toolCalls));
 
-                // Execute each tool and add its result
                 foreach (var kv in toolMap.OrderBy(x => x.Key))
                 {
                     var toolName = kv.Value.Name;
@@ -260,22 +226,21 @@ public class OpenAiChatService : IOpenAiChatService
                     var result = await ExecuteToolAsync(tenantId, toolName, argsJson, ct);
                     history.Add(new ToolChatMessage(toolId, result));
 
-                    // Signal to the client that a tool ran (filtered/ignored by widget UI)
                     yield return $"\n\n[Tool: {toolName}]\n";
                 }
 
-                // Loop again to get the model's response after the tool results
                 continue;
             }
 
-            // ── Normal finish (Stop / Length) ────────────────────────────────
+            // ── Normal finish ────────────────────────────────────────────────
             if (textBuffer.Length > 0)
                 history.Add(new AssistantChatMessage(textBuffer.ToString()));
 
             break;
         }
 
-        await SaveHistoryAsync(tenantId, sessionId, history);
+        // Pass existingConv so SaveHistoryAsync doesn't re-query the same row
+        await SaveHistoryAsync(tenantId, sessionId, history, existingConv);
     }
 
     // ── Tool execution ────────────────────────────────────────────────────────
@@ -305,9 +270,6 @@ public class OpenAiChatService : IOpenAiChatService
 
                 case "save_lead":
                 {
-                    // Guard: prevent duplicate lead saves within one streaming request.
-                    // The model can sometimes call save_lead multiple times in parallel
-                    // tool-call rounds — this ensures only the first call wins.
                     if (_leadSavedThisRequest)
                         return "Lead was already saved for this customer in this session. Do not call save_lead again.";
 
@@ -318,13 +280,11 @@ public class OpenAiChatService : IOpenAiChatService
                     if (args is null)
                         return "Error: could not parse save_lead arguments.";
 
-                    // Guard against null/empty fields — return a clear error so the
-                    // model knows to ask the customer for the missing information.
                     if (string.IsNullOrWhiteSpace(args.CustomerName))
-                        return "Error: customer_name is missing or empty. Please ask the customer for their full name before saving.";
+                        return "Error: customer_name is missing. Please ask the customer for their full name before saving.";
 
                     if (string.IsNullOrWhiteSpace(args.Phone))
-                        return "Error: phone is missing or empty. Please ask the customer for their phone number before saving.";
+                        return "Error: phone is missing. Please ask the customer for their phone number before saving.";
 
                     var lead = await _leadRepo.CreateAsync(new Lead
                     {
@@ -337,7 +297,6 @@ public class OpenAiChatService : IOpenAiChatService
 
                     _leadSavedThisRequest = true;
 
-                    // Fire-and-forget notification (never crash the chat stream)
                     var tenant = await _db.Tenants.FindAsync(new object[] { tenantId }, ct);
                     if (tenant is not null)
                     {
@@ -369,16 +328,21 @@ public class OpenAiChatService : IOpenAiChatService
 
     // ── History persistence ───────────────────────────────────────────────────
 
-    private async Task<List<ChatMessage>> LoadHistoryAsync(Guid tenantId, string sessionId, string systemPrompt)
+    /// <summary>
+    /// Loads conversation history and returns the tracked <see cref="Conversation"/> entity.
+    /// The entity is passed directly to <see cref="SaveHistoryAsync"/> so that method
+    /// does not need to re-query the same row — eliminating one DB round-trip per message.
+    /// </summary>
+    private async Task<(List<ChatMessage> Messages, Conversation? Entity)> LoadHistoryAsync(
+        Guid tenantId, string sessionId, string systemPrompt)
     {
         var conversation = await _db.Conversations
             .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.SessionId == sessionId);
 
-        // Always use the freshly-built system prompt (picks up price list changes)
         var messages = new List<ChatMessage> { new SystemChatMessage(systemPrompt) };
 
         if (conversation is null)
-            return messages;
+            return (messages, null);
 
         try
         {
@@ -398,17 +362,17 @@ public class OpenAiChatService : IOpenAiChatService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to deserialize conversation history for session {SessionId}", sessionId);
+            _logger.LogWarning(ex,
+                "Failed to deserialize conversation history for session {SessionId}", sessionId);
         }
 
-        return messages;
+        return (messages, conversation);
     }
 
-    private async Task SaveHistoryAsync(Guid tenantId, string sessionId, List<ChatMessage> messages)
+    private async Task SaveHistoryAsync(
+        Guid tenantId, string sessionId, List<ChatMessage> messages,
+        Conversation? existingConv)   // passed from LoadHistoryAsync — no re-query needed
     {
-        // Persist only user + assistant text turns.
-        // Tool calls and tool results are transient — they are re-generated on the
-        // next turn from the fresh price list context.
         var stored = new List<StoredMessage>();
         foreach (var m in messages.Skip(1)) // skip system prompt
         {
@@ -421,9 +385,6 @@ public class OpenAiChatService : IOpenAiChatService
                 case AssistantChatMessage a when a.Content.Count > 0 && !string.IsNullOrWhiteSpace(a.Content[0].Text):
                     stored.Add(new StoredMessage("assistant", a.Content[0].Text));
                     break;
-
-                // AssistantChatMessage with ToolCalls (Content.Count == 0) → skip
-                // ToolChatMessage → skip
             }
         }
 
@@ -431,11 +392,9 @@ public class OpenAiChatService : IOpenAiChatService
 
         try
         {
-            var conversation = await _db.Conversations
-                .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.SessionId == sessionId);
-
-            if (conversation is null)
+            if (existingConv is null)
             {
+                // New conversation — no query needed, just insert
                 _db.Conversations.Add(new Conversation
                 {
                     TenantId     = tenantId,
@@ -447,21 +406,22 @@ public class OpenAiChatService : IOpenAiChatService
             }
             else
             {
-                conversation.MessagesJson = json;
-                conversation.UpdatedAt    = DateTime.UtcNow;
+                // Existing conversation — entity is already tracked, just update fields
+                existingConv.MessagesJson = json;
+                existingConv.UpdatedAt    = DateTime.UtcNow;
             }
 
             await _db.SaveChangesAsync();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to save conversation history for session {SessionId}", sessionId);
+            _logger.LogError(ex,
+                "Failed to save conversation history for session {SessionId}", sessionId);
         }
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────
 
-    /// <summary>Mutable buffer for accumulating streaming tool-call deltas.</summary>
     private sealed class ToolCallBuffer
     {
         public string        Id   { get; set; } = "";

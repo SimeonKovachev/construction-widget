@@ -60,7 +60,23 @@ export default function ChatWindow({ tenantId, apiUrl, tenantName, greeting, onC
           </div>
           <div>
             <p style={{ color: "#fff", fontWeight: 600, fontSize: "14px", margin: 0 }}>{tenantName}</p>
-            <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "12px", margin: 0 }}>Sales Assistant · Online</p>
+            <div style={{ display: "flex", alignItems: "center", gap: "5px", marginTop: "2px" }}>
+              {/* Pulsing green dot — animates while the AI is generating a response */}
+              <span
+                style={{
+                  width: "7px",
+                  height: "7px",
+                  borderRadius: "50%",
+                  backgroundColor: "#4ade80",
+                  display: "inline-block",
+                  animation: isStreaming ? "pulse 1s ease-in-out infinite" : "none",
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ color: "rgba(255,255,255,0.8)", fontSize: "11px" }}>
+                {isStreaming ? "Typing…" : "Sales Assistant · Online"}
+              </span>
+            </div>
           </div>
         </div>
         <button
