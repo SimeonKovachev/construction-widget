@@ -78,19 +78,28 @@ export default function PriceListUpload({ onSuccess }: { onSuccess: () => void }
         </div>
       )}
 
-      <div className="bg-gray-50 rounded-lg p-4">
-        <div className="flex items-center gap-2 mb-2">
+      <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+        <div className="flex items-center gap-2">
           <FileText className="w-4 h-4 text-gray-500" />
-          <span className="text-sm font-medium text-gray-700">CSV Format Example</span>
+          <span className="text-sm font-medium text-gray-700">CSV Format</span>
         </div>
+        <p className="text-xs text-gray-500">
+          Use <strong>any category and material names</strong> that fit your business — the AI widget learns them automatically from your upload.
+        </p>
         <pre className="text-xs text-gray-600 overflow-x-auto">
 {`Category,Material,BasePrice,PricePerSqFt,MinimumPrice
 windows,vinyl,150,8.50,250
 windows,aluminum,200,12.00,350
+doors,wood,450,22.00,550
 doors,steel,400,20.00,500
+fencing,vinyl,80,5.00,150
+fencing,aluminum,100,7.00,200
 GLOBAL,MarkupPercentage,15,,
 GLOBAL,LaborFixedCost,75,,`}
         </pre>
+        <p className="text-xs text-gray-400">
+          💡 Replace <em>windows / doors / fencing</em> with your own product categories (e.g. <em>blinds, pergolas, garage-doors</em>). The AI chat will only suggest what&apos;s in your list.
+        </p>
       </div>
     </div>
   );

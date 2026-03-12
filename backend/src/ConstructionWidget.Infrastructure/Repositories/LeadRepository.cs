@@ -17,8 +17,21 @@ public class LeadRepository : ILeadRepository
     public async Task<Lead> CreateAsync(Lead lead)
     {
         _db.Leads.Add(lead);
-        await _db.SaveChangesAsync();
-        return lead;
+        try
+        {
+            await _db.SaveChangesAsync();
+            return lead;
+        }
+        catch
+        {
+            // EF Core does NOT automatically detach a failed entity.
+            // Without this, the Lead stays in "Added" state and will be
+            // re-attempted by any subsequent SaveChangesAsync() call in the
+            // same DbContext scope (e.g. SaveHistoryAsync), accumulating
+            // duplicate inserts on every retry.
+            _db.Entry(lead).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+            throw;
+        }
     }
 
     public async Task<IEnumerable<Lead>> GetByTenantAsync(Guid tenantId)
