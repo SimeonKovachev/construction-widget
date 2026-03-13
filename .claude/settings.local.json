@@ -51,7 +51,27 @@
       "Bash(dotnet build src/ConstructionWidget.Infrastructure/ConstructionWidget.Infrastructure.csproj --no-restore -v q)",
       "Bash(dotnet build --no-restore -v q)",
       "Bash(dotnet build src/ConstructionWidget.Core/ConstructionWidget.Core.csproj --no-restore -v q)",
-      "Bash(dotnet build src/ConstructionWidget.Api/ConstructionWidget.Api.csproj --no-restore -v q)"
+      "Bash(dotnet build src/ConstructionWidget.Api/ConstructionWidget.Api.csproj --no-restore -v q)",
+      "Bash(dotnet ef migrations add AddLeadFields --project src/ConstructionWidget.Infrastructure --startup-project src/ConstructionWidget.Api)",
+      "Bash(dotnet build src/ConstructionWidget.Api)",
+      "Bash(del \"D:\\\\Code\\\\custom\\\\construction-widget\\\\backend\\\\src\\\\ConstructionWidget.Api\\\\Controllers\\\\InternalController.cs\")",
+      "Bash(dotnet build src/ConstructionWidget.Infrastructure)",
+      "Bash(dotnet build src/ConstructionWidget.Api --no-incremental)",
+      "Bash(dotnet ef migrations add AddLeadFields --project src/ConstructionWidget.Infrastructure --startup-project src/ConstructionWidget.Api --no-build)",
+      "Bash(dotnet ef migrations add AddLeadFields --project src/ConstructionWidget.Infrastructure --startup-project src/ConstructionWidget.Api --configuration Release)",
+      "Bash(dotnet ef migrations add AddLeadFields --project src/ConstructionWidget.Infrastructure --startup-project src/ConstructionWidget.Infrastructure --configuration Release)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(dotnet new:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(dotnet add:*)",
+      "Bash(ls D:/Code/custom/construction-widget/backend/*.sln)",
+      "Bash(python3 -c \":*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet ef:*)",
+      "Bash(npm install:*)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(npx create-next-app@15 superadmin --typescript --tailwind --app --no-src-dir --import-alias \"@/*\" --eslint --no-turbopack --yes)",
+      "Bash(curl -s -X POST http://localhost:5032/api/auth/superadmin/login -H \"Content-Type: application/json\" -d \"{\"\"email\"\":\"\"simetofan@gmail.com\"\",\"\"password\"\":\"\"Simo0449.\"\"}\")"
     ]
   }
 }

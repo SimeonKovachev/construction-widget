@@ -1,6 +1,7 @@
-using ConstructionWidget.Core.Entities;
+using ConstructionWidget.Application.DTOs;
+using ConstructionWidget.Application.Interfaces;
 using ConstructionWidget.Core.Interfaces;
-using ConstructionWidget.Infrastructure.Services;
+using ConstructionWidget.Core.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,62 +12,37 @@ namespace ConstructionWidget.Api.Controllers;
 [Authorize]
 public class AdminController : ControllerBase
 {
-    private readonly ITenantRepository _tenantRepo;
-    private readonly IEstimateService _estimateService;
-    private readonly ITenantContext _tenantContext;
+    private readonly ITenantService   _tenantService;
+    private readonly IPriceListService _priceListService;
+    private readonly ITenantContext   _tenantContext;
 
     public AdminController(
-        ITenantRepository tenantRepo,
-        IEstimateService estimateService,
-        ITenantContext tenantContext)
+        ITenantService    tenantService,
+        IPriceListService priceListService,
+        ITenantContext    tenantContext)
     {
-        _tenantRepo = tenantRepo;
-        _estimateService = estimateService;
-        _tenantContext = tenantContext;
+        _tenantService    = tenantService;
+        _priceListService = priceListService;
+        _tenantContext    = tenantContext;
     }
 
-    [HttpGet("tenants/me")]
-    public async Task<IActionResult> GetMe()
-    {
-        var tenant = await _tenantRepo.GetByIdAsync(_tenantContext.TenantId);
-        if (tenant is null) return NotFound();
+    // ── Tenant settings ────────────────────────────────────────────────────────
 
-        return Ok(new
-        {
-            tenant.Id,
-            tenant.Name,
-            tenant.OwnerEmail,
-            tenant.ApiKey,
-            tenant.IsActive,
-            tenant.NotificationEmail,
-            tenant.CreatedAt
-        });
+    [HttpGet("tenants/me")]
+    public async Task<ActionResult<TenantDto>> GetMe()
+    {
+        var tenant = await _tenantService.GetTenantAsync(_tenantContext.TenantId);
+        return tenant is null ? NotFound() : Ok(tenant);
     }
 
     [HttpPut("tenants/me")]
-    public async Task<IActionResult> UpdateMe([FromBody] UpdateTenantRequest req)
+    public async Task<IActionResult> UpdateMe([FromBody] UpdateTenantDto req)
     {
-        var tenant = await _tenantRepo.GetByIdAsync(_tenantContext.TenantId);
-        if (tenant is null) return NotFound();
-
-        // Re-fetch tracked entity
-        var tracked = await GetTrackedTenantAsync(tenant.Id);
-        if (tracked is null) return NotFound();
-
-        if (!string.IsNullOrWhiteSpace(req.NotificationEmail))
-            tracked.NotificationEmail = req.NotificationEmail;
-        if (!string.IsNullOrWhiteSpace(req.SmtpHost))
-            tracked.SmtpHost = req.SmtpHost;
-        if (req.SmtpPort.HasValue)
-            tracked.SmtpPort = req.SmtpPort;
-        if (!string.IsNullOrWhiteSpace(req.SmtpUser))
-            tracked.SmtpUser = req.SmtpUser;
-        if (!string.IsNullOrWhiteSpace(req.SmtpPassword))
-            tracked.SmtpPassword = req.SmtpPassword;
-
-        await _tenantRepo.UpdateAsync(tracked);
-        return Ok(new { message = "Tenant updated." });
+        await _tenantService.UpdateTenantAsync(_tenantContext.TenantId, req);
+        return Ok(new { message = "Settings updated." });
     }
+
+    // ── Price list ─────────────────────────────────────────────────────────────
 
     [HttpPost("pricelist")]
     public async Task<IActionResult> UploadPriceList(IFormFile file)
@@ -77,108 +53,68 @@ public class AdminController : ControllerBase
         if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { error = "Only CSV files are accepted." });
 
-        if (file.Length > 1_048_576) // 1 MB limit
+        if (file.Length > 1_048_576)
             return BadRequest(new { error = "File too large. Max 1 MB." });
 
         using var reader = new StreamReader(file.OpenReadStream());
-        var csvContent = await reader.ReadToEndAsync();
+        var csvContent   = await reader.ReadToEndAsync();
 
-        await _estimateService.UpdatePriceListAsync(_tenantContext.TenantId, csvContent);
+        await _priceListService.UploadCsvAsync(_tenantContext.TenantId, csvContent);
         return Ok(new { message = "Price list updated successfully." });
     }
 
     [HttpGet("pricelist")]
-    public async Task<IActionResult> GetPriceList()
+    public async Task<ActionResult<PricingConfig>> GetPriceList()
     {
-        var config = await _estimateService.GetPricingConfigAsync(_tenantContext.TenantId);
-        if (config is null) return NotFound();
-        return Ok(config);
+        var config = await _priceListService.GetConfigAsync(_tenantContext.TenantId);
+        return config is null ? NotFound() : Ok(config);
     }
 
-    // ── Granular price list editing ────────────────────────────────────────────
-
-    /// <summary>Update global markup % and labor fixed cost.</summary>
     [HttpPut("pricelist/globals")]
-    public async Task<IActionResult> UpdateGlobals([FromBody] UpdateGlobalsRequest req)
+    public async Task<IActionResult> UpdateGlobals([FromBody] UpdateGlobalsDto req)
     {
-        await _estimateService.SaveGlobalsAsync(_tenantContext.TenantId, req.MarkupPercentage, req.LaborFixedCost);
+        await _priceListService.UpdateGlobalsAsync(_tenantContext.TenantId, req);
         return Ok(new { message = "Global pricing updated." });
     }
 
-    /// <summary>Upsert (add or update) a material row within a category.</summary>
     [HttpPut("pricelist/{category}/{material}")]
     public async Task<IActionResult> UpsertMaterial(
-        string category, string material, [FromBody] UpsertMaterialRequest req)
+        string category, string material, [FromBody] UpsertMaterialDto req)
     {
-        await _estimateService.UpsertMaterialAsync(
+        await _priceListService.UpsertMaterialAsync(
             _tenantContext.TenantId,
             Uri.UnescapeDataString(category),
             Uri.UnescapeDataString(material),
-            req.BasePrice, req.PricePerSqFt, req.MinimumPrice);
-
+            req);
         return Ok(new { message = $"Material '{material}' in '{category}' saved." });
     }
 
-    /// <summary>Remove a single material row from a category.</summary>
     [HttpDelete("pricelist/{category}/{material}")]
     public async Task<IActionResult> DeleteMaterial(string category, string material)
     {
-        var deleted = await _estimateService.DeleteMaterialAsync(
+        var deleted = await _priceListService.DeleteMaterialAsync(
             _tenantContext.TenantId,
             Uri.UnescapeDataString(category),
             Uri.UnescapeDataString(material));
-
         return deleted ? NoContent() : NotFound(new { error = "Category or material not found." });
     }
 
-    /// <summary>Add a new empty category.</summary>
     [HttpPost("pricelist/category")]
-    public async Task<IActionResult> AddCategory([FromBody] AddCategoryRequest req)
+    public async Task<IActionResult> AddCategory([FromBody] AddCategoryDto req)
     {
         if (string.IsNullOrWhiteSpace(req.Category))
             return BadRequest(new { error = "Category name is required." });
 
-        await _estimateService.AddCategoryAsync(_tenantContext.TenantId, req.Category.Trim());
+        await _priceListService.AddCategoryAsync(_tenantContext.TenantId, req.Category.Trim());
         return Ok(new { message = $"Category '{req.Category}' added." });
     }
 
-    /// <summary>Remove an entire category and all its materials.</summary>
     [HttpDelete("pricelist/{category}")]
     public async Task<IActionResult> DeleteCategory(string category)
     {
-        var deleted = await _estimateService.DeleteCategoryAsync(
+        var deleted = await _priceListService.DeleteCategoryAsync(
             _tenantContext.TenantId,
             Uri.UnescapeDataString(category));
-
         return deleted ? NoContent() : NotFound(new { error = "Category not found." });
     }
-
-    // Needed for tracked update
-    private async Task<Tenant?> GetTrackedTenantAsync(Guid id)
-    {
-        // This bypasses AsNoTracking in repo — OK here since we control the context scope
-        return await _tenantRepo.GetByIdAsync(id) is { } t
-            ? new Tenant
-            {
-                Id = t.Id, Name = t.Name, ApiKey = t.ApiKey, PricingConfig = t.PricingConfig,
-                IsActive = t.IsActive, CreatedAt = t.CreatedAt, OwnerEmail = t.OwnerEmail,
-                PasswordHash = t.PasswordHash, NotificationEmail = t.NotificationEmail,
-                SmtpHost = t.SmtpHost, SmtpPort = t.SmtpPort, SmtpUser = t.SmtpUser,
-                SmtpPassword = t.SmtpPassword
-            }
-            : null;
-    }
 }
-
-public record UpdateTenantRequest(
-    string? NotificationEmail,
-    string? SmtpHost,
-    int? SmtpPort,
-    string? SmtpUser,
-    string? SmtpPassword);
-
-public record UpdateGlobalsRequest(decimal MarkupPercentage, decimal LaborFixedCost);
-
-public record UpsertMaterialRequest(decimal BasePrice, decimal PricePerSqFt, decimal? MinimumPrice);
-
-public record AddCategoryRequest(string Category);

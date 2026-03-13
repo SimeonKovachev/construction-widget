@@ -34,6 +34,9 @@ public class AppDbContext : DbContext
         {
             e.HasKey(l => l.Id);
             e.HasIndex(l => l.TenantId);
+            e.HasIndex(l => l.Status);
+            e.HasIndex(l => new { l.TenantId, l.CreatedAt });
+            e.HasIndex(l => l.SessionId);
             e.Property(l => l.QuotedPrice).HasPrecision(18, 2);
             e.HasOne(l => l.Tenant).WithMany(t => t.Leads).HasForeignKey(l => l.TenantId);
 
@@ -44,7 +47,8 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Conversation>(e =>
         {
             e.HasKey(c => c.Id);
-            e.HasIndex(c => new { c.TenantId, c.SessionId });
+            e.HasIndex(c => new { c.TenantId, c.SessionId }).IsUnique();
+            e.HasIndex(c => c.CreatedAt);
             e.HasOne(c => c.Tenant).WithMany(t => t.Conversations).HasForeignKey(c => c.TenantId);
 
             // Multi-tenancy filter

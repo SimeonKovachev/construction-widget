@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import PriceListUpload from "@/components/PriceListUpload";
 import { PricingConfig } from "@/lib/types";
-import api from "@/lib/api";
+import { pricingService } from "@/lib/services/pricingService";
 import { Pencil, Trash2, Plus, Check, X } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -218,8 +218,8 @@ export default function PriceListPage() {
 
   const fetchConfig = useCallback(() => {
     setLoading(true);
-    api.get<PricingConfig>("/api/admin/pricelist")
-      .then(res => setConfig(res.data))
+    pricingService.getConfig()
+      .then(data => setConfig(data))
       .catch(() => setConfig(null))
       .finally(() => setLoading(false));
   }, []);
@@ -229,15 +229,12 @@ export default function PriceListPage() {
   // ── API helpers (all update local state for instant feedback) ─────────────
 
   async function saveGlobals(markup: number, labor: number) {
-    await api.put("/api/admin/pricelist/globals", { markupPercentage: markup, laborFixedCost: labor });
+    await pricingService.updateGlobals(markup, labor);
     setConfig(prev => prev ? { ...prev, markupPercentage: markup, laborFixedCost: labor } : prev);
   }
 
   async function upsertMaterial(category: string, row: MaterialRow) {
-    await api.put(
-      `/api/admin/pricelist/${encodeURIComponent(category)}/${encodeURIComponent(row.material)}`,
-      { basePrice: row.basePrice, pricePerSqFt: row.pricePerSqFt, minimumPrice: row.minimumPrice }
-    );
+    await pricingService.upsertMaterial(category, row.material, row.basePrice, row.pricePerSqFt, row.minimumPrice ?? null);
     setConfig(prev => {
       if (!prev) return prev;
       return {
@@ -257,7 +254,7 @@ export default function PriceListPage() {
 
   async function deleteMaterial(category: string, material: string) {
     if (!confirm(`Delete "${material}" from "${category}"?`)) return;
-    await api.delete(`/api/admin/pricelist/${encodeURIComponent(category)}/${encodeURIComponent(material)}`);
+    await pricingService.deleteMaterial(category, material);
     setConfig(prev => {
       if (!prev) return prev;
       const mats = { ...prev.categories[category].materials };
@@ -271,7 +268,7 @@ export default function PriceListPage() {
     if (!name) return;
     setAddingCat(true);
     try {
-      await api.post("/api/admin/pricelist/category", { category: name });
+      await pricingService.addCategory(name);
       setConfig(prev => prev
         ? { ...prev, categories: { ...prev.categories, [name]: { materials: {} } } }
         : prev);
@@ -283,7 +280,7 @@ export default function PriceListPage() {
 
   async function deleteCategory(category: string) {
     if (!confirm(`Delete entire category "${category}" and all its materials?`)) return;
-    await api.delete(`/api/admin/pricelist/${encodeURIComponent(category)}`);
+    await pricingService.deleteCategory(category);
     setConfig(prev => {
       if (!prev) return prev;
       const cats = { ...prev.categories };

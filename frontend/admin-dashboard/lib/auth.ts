@@ -4,7 +4,7 @@ const TOKEN_KEY = 'cw_token';
 const TENANT_KEY = 'cw_tenant';
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5032';
   const res = await fetch(`${apiUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

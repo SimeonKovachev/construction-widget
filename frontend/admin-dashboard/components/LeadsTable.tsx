@@ -11,7 +11,7 @@ import {
 } from "@tanstack/react-table";
 import { ChevronUp, ChevronDown, Search, Pencil, Trash2, X, Check } from "lucide-react";
 import { Lead, LeadStatus, UpdateLeadRequest } from "@/lib/types";
-import api from "@/lib/api";
+import { leadsService } from "@/lib/services/leadsService";
 
 // ── Status config ──────────────────────────────────────────────────────────────
 const STATUS_META: Record<LeadStatus, { label: string; bg: string; text: string }> = {
@@ -59,8 +59,8 @@ function LeadDrawer({ lead, onClose, onSaved, onDeleted }: DrawerProps) {
         status,
         notes: notes || undefined,
       };
-      const res = await api.patch<Lead>(`/api/admin/leads/${lead.id}`, payload);
-      onSaved(res.data);
+      const updated = await leadsService.update(lead.id, payload);
+      onSaved(updated);
     } catch {
       setError("Failed to save changes.");
     } finally {
@@ -72,7 +72,7 @@ function LeadDrawer({ lead, onClose, onSaved, onDeleted }: DrawerProps) {
     if (!confirmDelete) { setConfirmDelete(true); return; }
     setDeleting(true);
     try {
-      await api.delete(`/api/admin/leads/${lead.id}`);
+      await leadsService.delete(lead.id);
       onDeleted(lead.id);
     } catch {
       setError("Failed to delete lead.");

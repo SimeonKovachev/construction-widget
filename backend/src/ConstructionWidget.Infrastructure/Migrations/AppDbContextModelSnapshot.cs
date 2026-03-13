@@ -47,7 +47,10 @@ namespace ConstructionWidget.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "SessionId");
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("TenantId", "SessionId")
+                        .IsUnique();
 
                     b.ToTable("Conversations");
                 });
@@ -86,6 +89,9 @@ namespace ConstructionWidget.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("SessionId")
+                        .HasColumnType("text");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
@@ -98,7 +104,13 @@ namespace ConstructionWidget.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("SessionId");
+
+                    b.HasIndex("Status");
+
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "CreatedAt");
 
                     b.ToTable("Leads");
                 });

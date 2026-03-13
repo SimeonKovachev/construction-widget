@@ -18,7 +18,8 @@ public record SaveLeadArgs(
     [property: JsonPropertyName("customer_name")] string CustomerName,
     [property: JsonPropertyName("phone")]          string Phone,
     [property: JsonPropertyName("requirements")]   string Requirements,
-    [property: JsonPropertyName("quoted_price")]   decimal QuotedPrice);
+    [property: JsonPropertyName("quoted_price")]   decimal QuotedPrice,
+    [property: JsonPropertyName("email")]          string? Email);
 
 public record LoginRequest(string Email, string Password);
 

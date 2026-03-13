@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ConstructionWidget.Core\ConstructionWidget.Core.csproj" />
     <ProjectReference Include="..\ConstructionWidget.Infrastructure\ConstructionWidget.Infrastructure.csproj" />
+    <ProjectReference Include="..\ConstructionWidget.Application\ConstructionWidget.Application.csproj" />
   </ItemGroup>
 
 </Project>

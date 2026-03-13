@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import LeadsTable from "@/components/LeadsTable";
 import { Lead } from "@/lib/types";
-import api from "@/lib/api";
+import { leadsService } from "@/lib/services/leadsService";
 
 export default function LeadsPage() {
   const [leads, setLeads]     = useState<Lead[]>([]);
@@ -10,8 +10,8 @@ export default function LeadsPage() {
   const [error, setError]     = useState("");
 
   useEffect(() => {
-    api.get<Lead[]>("/api/admin/leads")
-      .then(res => setLeads(res.data))
+    leadsService.getAll()
+      .then(setLeads)
       .catch(() => setError("Failed to load leads."))
       .finally(() => setLoading(false));
   }, []);

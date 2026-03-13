@@ -1,10 +1,14 @@
 using System.Text;
 using ConstructionWidget.Api.Hubs;
 using ConstructionWidget.Api.Middleware;
+using ConstructionWidget.Application.Interfaces;
+using ConstructionWidget.Application.Mapping;
+using ConstructionWidget.Application.Services;
 using ConstructionWidget.Core.Interfaces;
 using ConstructionWidget.Infrastructure.Data;
 using ConstructionWidget.Infrastructure.Repositories;
 using ConstructionWidget.Infrastructure.Services;
+using Mapster;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -13,25 +17,39 @@ using OpenAI;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ─── Configuration ───────────────────────────────────────────────────────────
+// ─── Configuration ────────────────────────────────────────────────────────────
 builder.Services.Configure<OpenAiOptions>(builder.Configuration.GetSection("OpenAI"));
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
+
+// ─── Mapster ──────────────────────────────────────────────────────────────────
+var mapsterConfig = TypeAdapterConfig.GlobalSettings;
+mapsterConfig.Scan(typeof(MappingConfig).Assembly);
 
 // ─── Database ─────────────────────────────────────────────────────────────────
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// ─── Core Services ────────────────────────────────────────────────────────────
+// ─── Infrastructure — Repositories ───────────────────────────────────────────
+builder.Services.AddScoped<ILeadRepository,         LeadRepository>();
+builder.Services.AddScoped<ITenantRepository,       TenantRepository>();
+builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
+
+// ─── Infrastructure — Services ────────────────────────────────────────────────
 builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
 builder.Services.AddScoped<EstimateService>();
 builder.Services.AddScoped<IEstimateService>(sp => sp.GetRequiredService<EstimateService>());
 builder.Services.AddScoped<IOpenAiChatService, OpenAiChatService>();
 builder.Services.AddScoped<ILeadNotificationService, LeadNotificationService>();
-builder.Services.AddScoped<ILeadRepository, LeadRepository>();
-builder.Services.AddScoped<ITenantRepository, TenantRepository>();
+builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<AuthService>();
+
+// ─── Application — Services ───────────────────────────────────────────────────
+builder.Services.AddScoped<ILeadService,       LeadService>();
+builder.Services.AddScoped<ITenantService,     TenantService>();
+builder.Services.AddScoped<IPriceListService,  PriceListService>();
+builder.Services.AddScoped<ISuperAdminService, SuperAdminService>();
 
 // ─── Caching + Singleton OpenAI client ───────────────────────────────────────
 builder.Services.AddMemoryCache();
@@ -51,14 +69,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
+            ValidateIssuer           = true,
+            ValidateAudience         = true,
+            ValidateLifetime         = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
-            ClockSkew = TimeSpan.Zero
+            ValidIssuer              = builder.Configuration["Jwt:Issuer"],
+            ValidAudience            = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            ClockSkew                = TimeSpan.Zero,
+            RoleClaimType            = System.Security.Claims.ClaimTypes.Role,
         };
     });
 
@@ -68,28 +87,15 @@ builder.Services.AddAuthorization();
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
-    {
-        // SetIsOriginAllowed (not AllowAnyOrigin) so that null origins from
-        // file:// pages are also echoed back and allowed by the browser.
-        policy.SetIsOriginAllowed(_ => true).AllowAnyHeader().AllowAnyMethod();
-    });
+        policy.SetIsOriginAllowed(_ => true).AllowAnyHeader().AllowAnyMethod());
 
-    // SignalR requires AllowCredentials — cannot use AllowAnyOrigin with credentials
     options.AddPolicy("SignalR", policy =>
-    {
-        policy
-            .SetIsOriginAllowed(_ => true)
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();
-    });
+        policy.SetIsOriginAllowed(_ => true).AllowAnyHeader().AllowAnyMethod().AllowCredentials());
 });
 
 // ─── SignalR ──────────────────────────────────────────────────────────────────
 builder.Services.AddSignalR(options =>
-{
-    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
-});
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment());
 
 // ─── MVC ──────────────────────────────────────────────────────────────────────
 builder.Services.AddControllers();
@@ -106,23 +112,19 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseStaticFiles();
-
 app.UseCors();
-
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.UseMiddleware<TenantResolutionMiddleware>();
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
-
 app.MapControllers();
 app.MapHub<ChatHub>("/hubs/chat").RequireCors("SignalR");
 
 // ─── Auto-migrate + seed on startup ──────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var db            = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     await db.Database.MigrateAsync();
     await ConstructionWidget.Infrastructure.Data.DbSeeder.SeedAsync(db, startupLogger);

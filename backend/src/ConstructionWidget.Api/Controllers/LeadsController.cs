@@ -1,4 +1,5 @@
-using ConstructionWidget.Core.Entities;
+using ConstructionWidget.Application.DTOs;
+using ConstructionWidget.Application.Interfaces;
 using ConstructionWidget.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,80 +11,37 @@ namespace ConstructionWidget.Api.Controllers;
 [Authorize]
 public class LeadsController : ControllerBase
 {
-    private readonly ILeadRepository _leadRepo;
+    private readonly ILeadService   _leadService;
     private readonly ITenantContext _tenantContext;
 
-    public LeadsController(ILeadRepository leadRepo, ITenantContext tenantContext)
+    public LeadsController(ILeadService leadService, ITenantContext tenantContext)
     {
-        _leadRepo      = leadRepo;
+        _leadService   = leadService;
         _tenantContext = tenantContext;
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetLeads()
-    {
-        var leads = await _leadRepo.GetByTenantAsync(_tenantContext.TenantId);
-        return Ok(leads.Select(MapToDto));
-    }
+    public async Task<ActionResult<IEnumerable<LeadDto>>> GetLeads()
+        => Ok(await _leadService.GetLeadsAsync(_tenantContext.TenantId));
 
     [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetLead(Guid id)
+    public async Task<ActionResult<LeadDto>> GetLead(Guid id)
     {
-        var lead = await _leadRepo.GetByIdAsync(id, _tenantContext.TenantId);
-        if (lead is null) return NotFound();
-        return Ok(MapToDto(lead));
+        var lead = await _leadService.GetLeadAsync(id, _tenantContext.TenantId);
+        return lead is null ? NotFound() : Ok(lead);
     }
 
     [HttpPatch("{id:guid}")]
-    public async Task<IActionResult> UpdateLead(Guid id, [FromBody] UpdateLeadRequest req)
+    public async Task<ActionResult<LeadDto>> UpdateLead(Guid id, [FromBody] UpdateLeadDto req)
     {
-        var existing = await _leadRepo.GetByIdAsync(id, _tenantContext.TenantId);
-        if (existing is null) return NotFound();
-
-        // Apply only the fields the caller provided (null = keep existing value)
-        var patch = new Lead
-        {
-            Id       = existing.Id,
-            TenantId = existing.TenantId,
-            Email    = req.Email    ?? existing.Email,
-            Status   = req.Status   ?? existing.Status,
-            Notes    = req.Notes    ?? existing.Notes,
-        };
-
-        var result = await _leadRepo.UpdateAsync(patch);
-        if (result is null) return NotFound();
-
-        // Re-fetch full record to return the complete DTO
-        var full = await _leadRepo.GetByIdAsync(id, _tenantContext.TenantId);
-        return Ok(MapToDto(full!));
+        var result = await _leadService.UpdateLeadAsync(id, _tenantContext.TenantId, req);
+        return result is null ? NotFound() : Ok(result);
     }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteLead(Guid id)
     {
-        var deleted = await _leadRepo.DeleteAsync(id, _tenantContext.TenantId);
-        if (!deleted) return NotFound();
-        return NoContent();
+        var deleted = await _leadService.DeleteLeadAsync(id, _tenantContext.TenantId);
+        return deleted ? NoContent() : NotFound();
     }
-
-    // ── Shared DTO mapper ──────────────────────────────────────────────────────
-    private static object MapToDto(Lead l) => new
-    {
-        l.Id,
-        l.CustomerName,
-        l.Phone,
-        l.Email,
-        l.Requirements,
-        l.QuotedPrice,
-        l.Status,
-        l.Notes,
-        l.ExtrasJson,
-        l.CreatedAt,
-        l.UpdatedAt
-    };
 }
-
-public record UpdateLeadRequest(
-    string? Email,
-    string? Status,
-    string? Notes);

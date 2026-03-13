@@ -11,8 +11,8 @@ public class TenantResolutionMiddleware
     private static readonly HashSet<string> SkippedPaths = new(StringComparer.OrdinalIgnoreCase)
     {
         "/api/auth/login",
-        // NOTE: /api/admin/tenants intentionally removed — those endpoints
-        //       resolve their tenant from the JWT claim and must NOT be skipped.
+        "/api/auth/superadmin",   // superadmin login — no tenant context
+        "/api/superadmin",        // all superadmin endpoints — no tenant context
         "/healthz",
         "/hubs/chat",
         "/widget.js"

@@ -7,6 +7,9 @@ public interface ITenantRepository
     Task<Tenant?> GetByApiKeyAsync(string apiKey);
     Task<Tenant?> GetByIdAsync(Guid id);
     Task<Tenant?> GetByEmailAsync(string email);
-    Task<Tenant> CreateAsync(Tenant tenant);
-    Task UpdateAsync(Tenant tenant);
+    Task<IEnumerable<Tenant>> GetAllAsync();
+    Task<Tenant>  CreateAsync(Tenant tenant);
+    Task          UpdateSettingsAsync(Guid id, string? notificationEmail, string? smtpHost, int? smtpPort, string? smtpUser, string? smtpPassword);
+    Task<bool>    ToggleActiveAsync(Guid id);
+    Task<bool>    DeleteAsync(Guid id);
 }

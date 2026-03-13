@@ -22,6 +22,8 @@ npm-debug.log*
 # ── Next.js ──────────────────────────────────────────────────────────────────
 frontend/admin-dashboard/.next/
 frontend/admin-dashboard/out/
+frontend/superadmin/.next/
+frontend/superadmin/out/
 
 # ── Vite / Widget build output ────────────────────────────────────────────────
 frontend/widget/dist/

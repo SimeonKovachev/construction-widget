@@ -19,6 +19,9 @@ public class Lead
     /// <summary>JSON blob for business-specific extra fields collected by the AI</summary>
     public string? ExtrasJson { get; set; }
 
+    /// <summary>Widget session ID used to prevent duplicate leads from the same conversation.</summary>
+    public string? SessionId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 

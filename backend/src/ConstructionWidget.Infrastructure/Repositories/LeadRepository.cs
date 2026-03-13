@@ -9,10 +9,7 @@ public class LeadRepository : ILeadRepository
 {
     private readonly AppDbContext _db;
 
-    public LeadRepository(AppDbContext db)
-    {
-        _db = db;
-    }
+    public LeadRepository(AppDbContext db) => _db = db;
 
     public async Task<Lead> CreateAsync(Lead lead)
     {
@@ -24,55 +21,57 @@ public class LeadRepository : ILeadRepository
         }
         catch
         {
-            // EF Core does NOT automatically detach a failed entity.
-            // Without this, the Lead stays in "Added" state and will be
-            // re-attempted by any subsequent SaveChangesAsync() call in the
-            // same DbContext scope (e.g. SaveHistoryAsync), accumulating
-            // duplicate inserts on every retry.
-            _db.Entry(lead).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+            // Detach failed entity to prevent duplicate inserts on subsequent SaveChanges calls.
+            _db.Entry(lead).State = EntityState.Detached;
             throw;
         }
     }
 
     public async Task<IEnumerable<Lead>> GetByTenantAsync(Guid tenantId)
-    {
-        return await _db.Leads
+        => await _db.Leads
             .AsNoTracking()
             .Where(l => l.TenantId == tenantId)
             .OrderByDescending(l => l.CreatedAt)
             .ToListAsync();
-    }
 
     public async Task<Lead?> GetByIdAsync(Guid id, Guid tenantId)
-    {
-        return await _db.Leads
+        => await _db.Leads
             .AsNoTracking()
             .FirstOrDefaultAsync(l => l.Id == id && l.TenantId == tenantId);
-    }
 
-    public async Task<Lead?> UpdateAsync(Lead lead)
+    /// <summary>
+    /// Applies a partial update in a single DB round-trip. Null arguments are left unchanged.
+    /// Returns the updated entity, or null if not found.
+    /// </summary>
+    public async Task<Lead?> UpdateAsync(Guid id, Guid tenantId, string? email, string? status, string? notes)
     {
-        var tracked = await _db.Leads
-            .FirstOrDefaultAsync(l => l.Id == lead.Id && l.TenantId == lead.TenantId);
-        if (tracked is null) return null;
+        var lead = await _db.Leads
+            .FirstOrDefaultAsync(l => l.Id == id && l.TenantId == tenantId);
 
-        tracked.Email     = lead.Email;
-        tracked.Status    = lead.Status;
-        tracked.Notes     = lead.Notes;
-        tracked.UpdatedAt = DateTime.UtcNow;
+        if (lead is null) return null;
+
+        if (email  is not null) lead.Email  = email;
+        if (status is not null) lead.Status = status;
+        if (notes  is not null) lead.Notes  = notes;
+        lead.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
-        return tracked;
+        return lead;
     }
 
     public async Task<bool> DeleteAsync(Guid id, Guid tenantId)
     {
-        var lead = await _db.Leads
-            .FirstOrDefaultAsync(l => l.Id == id && l.TenantId == tenantId);
-        if (lead is null) return false;
-
-        _db.Leads.Remove(lead);
-        await _db.SaveChangesAsync();
-        return true;
+        var deleted = await _db.Leads
+            .Where(l => l.Id == id && l.TenantId == tenantId)
+            .ExecuteDeleteAsync();
+        return deleted > 0;
     }
+
+    /// <summary>Returns true if a lead already exists for this widget session — prevents duplicate saves.</summary>
+    public async Task<bool> ExistsBySessionAsync(Guid tenantId, string sessionId)
+        => await _db.Leads.AnyAsync(l => l.TenantId == tenantId && l.SessionId == sessionId);
+
+    /// <summary>Count all leads across all tenants — bypasses the global query filter.</summary>
+    public async Task<int> CountAllTenantsAsync()
+        => await _db.Leads.IgnoreQueryFilters().CountAsync();
 }
