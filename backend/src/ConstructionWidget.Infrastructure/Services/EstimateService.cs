@@ -174,6 +174,84 @@ public class EstimateService : IEstimateService
         return config;
     }
 
+    // ── Granular inline editing ───────────────────────────────────────────────
+
+    public async Task SaveGlobalsAsync(Guid tenantId, decimal markupPercentage, decimal laborFixedCost)
+    {
+        var config = await GetPricingConfigAsync(tenantId) ?? new PricingConfig();
+        config.MarkupPercentage = markupPercentage;
+        config.LaborFixedCost   = laborFixedCost;
+        await PersistConfigAsync(tenantId, config);
+    }
+
+    public async Task UpsertMaterialAsync(
+        Guid tenantId, string category, string material,
+        decimal basePrice, decimal pricePerSqFt, decimal? minimumPrice)
+    {
+        var config = await GetPricingConfigAsync(tenantId) ?? new PricingConfig();
+
+        if (!config.Categories.ContainsKey(category))
+            config.Categories[category] = new CategoryPricing();
+
+        config.Categories[category].Materials[material] = new MaterialPricing
+        {
+            BasePrice    = basePrice,
+            PricePerSqFt = pricePerSqFt,
+            MinimumPrice = minimumPrice
+        };
+
+        await PersistConfigAsync(tenantId, config);
+    }
+
+    public async Task<bool> DeleteMaterialAsync(Guid tenantId, string category, string material)
+    {
+        var config = await GetPricingConfigAsync(tenantId);
+        if (config is null) return false;
+
+        if (!config.Categories.TryGetValue(category, out var cat)) return false;
+        if (!cat.Materials.Remove(material)) return false;
+
+        await PersistConfigAsync(tenantId, config);
+        return true;
+    }
+
+    public async Task AddCategoryAsync(Guid tenantId, string category)
+    {
+        var config = await GetPricingConfigAsync(tenantId) ?? new PricingConfig();
+
+        if (!config.Categories.ContainsKey(category))
+            config.Categories[category] = new CategoryPricing();
+
+        await PersistConfigAsync(tenantId, config);
+    }
+
+    public async Task<bool> DeleteCategoryAsync(Guid tenantId, string category)
+    {
+        var config = await GetPricingConfigAsync(tenantId);
+        if (config is null) return false;
+
+        if (!config.Categories.Remove(category)) return false;
+
+        await PersistConfigAsync(tenantId, config);
+        return true;
+    }
+
+    /// <summary>
+    /// Saves the given PricingConfig to DB and evicts the cache.
+    /// All granular-edit methods funnel through here.
+    /// </summary>
+    private async Task PersistConfigAsync(Guid tenantId, PricingConfig config)
+    {
+        var tenant = await _db.Tenants.FindAsync(tenantId)
+            ?? throw new InvalidOperationException($"Tenant {tenantId} not found");
+
+        tenant.PricingConfig = JsonSerializer.Serialize(config);
+        await _db.SaveChangesAsync();
+
+        _cache.Remove(PricingCacheKey(tenantId));
+        _logger.LogInformation("Price list updated for tenant {TenantId} (granular edit); cache evicted.", tenantId);
+    }
+
     // ── Internal helpers ──────────────────────────────────────────────────────
 
     private static string PricingCacheKey(Guid tenantId) => $"pricing:{tenantId}";

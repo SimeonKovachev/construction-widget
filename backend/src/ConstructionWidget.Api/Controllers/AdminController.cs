@@ -95,6 +95,64 @@ public class AdminController : ControllerBase
         return Ok(config);
     }
 
+    // ── Granular price list editing ────────────────────────────────────────────
+
+    /// <summary>Update global markup % and labor fixed cost.</summary>
+    [HttpPut("pricelist/globals")]
+    public async Task<IActionResult> UpdateGlobals([FromBody] UpdateGlobalsRequest req)
+    {
+        await _estimateService.SaveGlobalsAsync(_tenantContext.TenantId, req.MarkupPercentage, req.LaborFixedCost);
+        return Ok(new { message = "Global pricing updated." });
+    }
+
+    /// <summary>Upsert (add or update) a material row within a category.</summary>
+    [HttpPut("pricelist/{category}/{material}")]
+    public async Task<IActionResult> UpsertMaterial(
+        string category, string material, [FromBody] UpsertMaterialRequest req)
+    {
+        await _estimateService.UpsertMaterialAsync(
+            _tenantContext.TenantId,
+            Uri.UnescapeDataString(category),
+            Uri.UnescapeDataString(material),
+            req.BasePrice, req.PricePerSqFt, req.MinimumPrice);
+
+        return Ok(new { message = $"Material '{material}' in '{category}' saved." });
+    }
+
+    /// <summary>Remove a single material row from a category.</summary>
+    [HttpDelete("pricelist/{category}/{material}")]
+    public async Task<IActionResult> DeleteMaterial(string category, string material)
+    {
+        var deleted = await _estimateService.DeleteMaterialAsync(
+            _tenantContext.TenantId,
+            Uri.UnescapeDataString(category),
+            Uri.UnescapeDataString(material));
+
+        return deleted ? NoContent() : NotFound(new { error = "Category or material not found." });
+    }
+
+    /// <summary>Add a new empty category.</summary>
+    [HttpPost("pricelist/category")]
+    public async Task<IActionResult> AddCategory([FromBody] AddCategoryRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Category))
+            return BadRequest(new { error = "Category name is required." });
+
+        await _estimateService.AddCategoryAsync(_tenantContext.TenantId, req.Category.Trim());
+        return Ok(new { message = $"Category '{req.Category}' added." });
+    }
+
+    /// <summary>Remove an entire category and all its materials.</summary>
+    [HttpDelete("pricelist/{category}")]
+    public async Task<IActionResult> DeleteCategory(string category)
+    {
+        var deleted = await _estimateService.DeleteCategoryAsync(
+            _tenantContext.TenantId,
+            Uri.UnescapeDataString(category));
+
+        return deleted ? NoContent() : NotFound(new { error = "Category not found." });
+    }
+
     // Needed for tracked update
     private async Task<Tenant?> GetTrackedTenantAsync(Guid id)
     {
@@ -118,3 +176,9 @@ public record UpdateTenantRequest(
     int? SmtpPort,
     string? SmtpUser,
     string? SmtpPassword);
+
+public record UpdateGlobalsRequest(decimal MarkupPercentage, decimal LaborFixedCost);
+
+public record UpsertMaterialRequest(decimal BasePrice, decimal PricePerSqFt, decimal? MinimumPrice);
+
+public record AddCategoryRequest(string Category);

@@ -49,4 +49,30 @@ public class LeadRepository : ILeadRepository
             .AsNoTracking()
             .FirstOrDefaultAsync(l => l.Id == id && l.TenantId == tenantId);
     }
+
+    public async Task<Lead?> UpdateAsync(Lead lead)
+    {
+        var tracked = await _db.Leads
+            .FirstOrDefaultAsync(l => l.Id == lead.Id && l.TenantId == lead.TenantId);
+        if (tracked is null) return null;
+
+        tracked.Email     = lead.Email;
+        tracked.Status    = lead.Status;
+        tracked.Notes     = lead.Notes;
+        tracked.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync();
+        return tracked;
+    }
+
+    public async Task<bool> DeleteAsync(Guid id, Guid tenantId)
+    {
+        var lead = await _db.Leads
+            .FirstOrDefaultAsync(l => l.Id == id && l.TenantId == tenantId);
+        if (lead is null) return false;
+
+        _db.Leads.Remove(lead);
+        await _db.SaveChangesAsync();
+        return true;
+    }
 }

@@ -1,10 +1,23 @@
+export type LeadStatus = "new" | "contacted" | "quoted" | "converted" | "lost";
+
 export interface Lead {
   id: string;
   customerName: string;
   phone: string;
+  email?: string;
   requirements: string;
   quotedPrice: number;
+  status: LeadStatus;
+  notes?: string;
+  extrasJson?: string;
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface UpdateLeadRequest {
+  email?: string;
+  status?: LeadStatus;
+  notes?: string;
 }
 
 export interface PricingConfig {

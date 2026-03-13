@@ -5,16 +5,24 @@ import { Lead } from "@/lib/types";
 import api from "@/lib/api";
 
 export default function LeadsPage() {
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leads, setLeads]     = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError]     = useState("");
 
   useEffect(() => {
     api.get<Lead[]>("/api/admin/leads")
-      .then((res) => setLeads(res.data))
+      .then(res => setLeads(res.data))
       .catch(() => setError("Failed to load leads."))
       .finally(() => setLoading(false));
   }, []);
+
+  function handleUpdate(updated: Lead) {
+    setLeads(prev => prev.map(l => l.id === updated.id ? updated : l));
+  }
+
+  function handleDelete(id: string) {
+    setLeads(prev => prev.filter(l => l.id !== id));
+  }
 
   return (
     <div>
@@ -23,8 +31,10 @@ export default function LeadsPage() {
         <p className="text-slate-500 text-sm mt-1">Customer enquiries captured by your widget</p>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6"
-           style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+      <div
+        className="bg-white rounded-2xl border border-slate-200 p-6"
+        style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+      >
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -34,7 +44,7 @@ export default function LeadsPage() {
             {error}
           </div>
         ) : (
-          <LeadsTable data={leads} />
+          <LeadsTable data={leads} onUpdate={handleUpdate} onDelete={handleDelete} />
         )}
       </div>
     </div>

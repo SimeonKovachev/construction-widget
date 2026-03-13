@@ -6,8 +6,13 @@ using Microsoft.AspNetCore.Mvc;
 namespace ConstructionWidget.Api.Controllers;
 
 /// <summary>
-/// Public endpoint to create tenants (onboarding).
-/// In production, protect this with a super-admin secret header.
+/// Super-admin endpoint for provisioning new tenant accounts.
+/// Protected by X-Admin-Secret header — only the platform operator can call this.
+///
+/// Usage (Postman / curl):
+///   POST /api/admin/tenants
+///   Header: X-Admin-Secret: &lt;value of AdminSecret in appsettings.json&gt;
+///   Body: { "name": "Acme Fencing", "ownerEmail": "...", "password": "...", "notificationEmail": "..." }
 /// </summary>
 [ApiController]
 [Route("api/admin/tenants")]
@@ -19,44 +24,67 @@ public class TenantsController : ControllerBase
     public TenantsController(ITenantRepository tenantRepo, IConfiguration config)
     {
         _tenantRepo = tenantRepo;
-        _config = config;
+        _config     = config;
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreateTenant([FromBody] CreateTenantRequest request)
+    public async Task<IActionResult> CreateTenant([FromBody] CreateTenantRequest req)
     {
-        // Simple super-admin guard
-        var adminSecret = _config["AdminSecret"];
-        if (!string.IsNullOrEmpty(adminSecret))
+        // ── Verify admin secret ────────────────────────────────────────────────
+        var expectedSecret = _config["AdminSecret"];
+        if (!string.IsNullOrEmpty(expectedSecret))
         {
-            if (!Request.Headers.TryGetValue("X-Admin-Secret", out var secret) || secret != adminSecret)
-                return Unauthorized(new { error = "Admin secret required." });
+            var provided = Request.Headers["X-Admin-Secret"].ToString();
+            if (!string.Equals(provided, expectedSecret, StringComparison.Ordinal))
+                return Unauthorized(new { error = "Invalid or missing X-Admin-Secret header." });
         }
 
-        var existing = await _tenantRepo.GetByEmailAsync(request.OwnerEmail);
-        if (existing is not null)
-            return Conflict(new { error = "An account with this email already exists." });
+        // ── Validate ───────────────────────────────────────────────────────────
+        if (string.IsNullOrWhiteSpace(req.Name))
+            return BadRequest(new { error = "Name is required." });
 
+        if (string.IsNullOrWhiteSpace(req.OwnerEmail))
+            return BadRequest(new { error = "OwnerEmail is required." });
+
+        if (string.IsNullOrWhiteSpace(req.Password) || req.Password.Length < 8)
+            return BadRequest(new { error = "Password must be at least 8 characters." });
+
+        // ── Duplicate email check ──────────────────────────────────────────────
+        var existing = await _tenantRepo.GetByEmailAsync(req.OwnerEmail.Trim());
+        if (existing is not null)
+            return Conflict(new { error = $"A tenant with email '{req.OwnerEmail}' already exists." });
+
+        // ── Create tenant ──────────────────────────────────────────────────────
         var tenant = new Tenant
         {
-            Name = request.Name,
-            OwnerEmail = request.OwnerEmail,
-            PasswordHash = AuthService.HashPassword(request.Password),
-            ApiKey = Guid.NewGuid().ToString("N"),
-            IsActive = true
+            Id            = Guid.NewGuid(),
+            Name          = req.Name.Trim(),
+            OwnerEmail    = req.OwnerEmail.Trim().ToLowerInvariant(),
+            PasswordHash  = AuthService.HashPassword(req.Password),
+            ApiKey        = Guid.NewGuid().ToString("N"),
+            NotificationEmail = string.IsNullOrWhiteSpace(req.NotificationEmail)
+                                ? req.OwnerEmail.Trim().ToLowerInvariant()
+                                : req.NotificationEmail.Trim(),
+            IsActive  = true,
+            CreatedAt = DateTime.UtcNow
         };
 
         await _tenantRepo.CreateAsync(tenant);
 
-        return CreatedAtAction(nameof(CreateTenant), new
+        return Ok(new
         {
-            tenant.Id,
-            tenant.Name,
-            tenant.OwnerEmail,
-            tenant.ApiKey,
-            message = "Tenant created. Use the ApiKey for widget embedding and the email/password for admin login."
+            tenantId          = tenant.Id,
+            name              = tenant.Name,
+            ownerEmail        = tenant.OwnerEmail,
+            apiKey            = tenant.ApiKey,
+            notificationEmail = tenant.NotificationEmail,
+            message           = $"Tenant '{tenant.Name}' created. Send the client: login URL, their email, and the temporary password you chose."
         });
     }
 }
 
-public record CreateTenantRequest(string Name, string OwnerEmail, string Password);
+public record CreateTenantRequest(
+    string  Name,
+    string  OwnerEmail,
+    string  Password,
+    string? NotificationEmail);
