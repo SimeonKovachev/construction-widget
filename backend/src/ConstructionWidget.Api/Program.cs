@@ -106,13 +106,26 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
+// Allow all Vercel deployments + localhost for dev.
+// Widget uses SignalR policy which allows any origin (embedded on customer sites).
+static bool IsAllowedOrigin(string origin) =>
+    origin.EndsWith(".vercel.app",  StringComparison.OrdinalIgnoreCase) ||
+    origin.StartsWith("http://localhost",  StringComparison.OrdinalIgnoreCase) ||
+    origin.StartsWith("https://localhost", StringComparison.OrdinalIgnoreCase);
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
-        policy.SetIsOriginAllowed(_ => true).AllowAnyHeader().AllowAnyMethod());
+        policy.SetIsOriginAllowed(IsAllowedOrigin)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials());
 
     options.AddPolicy("SignalR", policy =>
-        policy.SetIsOriginAllowed(_ => true).AllowAnyHeader().AllowAnyMethod().AllowCredentials());
+        policy.SetIsOriginAllowed(_ => true)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials());
 });
 
 // ─── SignalR ──────────────────────────────────────────────────────────────────
