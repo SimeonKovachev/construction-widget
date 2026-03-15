@@ -27,8 +27,30 @@ var mapsterConfig = TypeAdapterConfig.GlobalSettings;
 mapsterConfig.Scan(typeof(MappingConfig).Assembly);
 
 // ─── Database ─────────────────────────────────────────────────────────────────
+// Try appsettings / env var first; fall back to Railway's DATABASE_URL
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+    if (!string.IsNullOrWhiteSpace(databaseUrl))
+    {
+        // Convert postgresql://user:pass@host:port/db → Npgsql key=value format
+        var uri     = new Uri(databaseUrl);
+        var parts   = uri.UserInfo.Split(':', 2);
+        connectionString =
+            $"Host={uri.Host};Port={uri.Port};" +
+            $"Database={uri.AbsolutePath.TrimStart('/')};" +
+            $"Username={parts[0]};Password={parts[1]};SslMode=Disable";
+    }
+}
+
+if (string.IsNullOrWhiteSpace(connectionString))
+    throw new InvalidOperationException(
+        "No database connection string found. Set ConnectionStrings__DefaultConnection or DATABASE_URL.");
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(connectionString));
 
 // ─── Infrastructure — Repositories ───────────────────────────────────────────
 builder.Services.AddScoped<ILeadRepository,         LeadRepository>();
