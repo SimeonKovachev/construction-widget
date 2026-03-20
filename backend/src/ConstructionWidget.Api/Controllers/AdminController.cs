@@ -1,5 +1,6 @@
 using ConstructionWidget.Application.DTOs;
 using ConstructionWidget.Application.Interfaces;
+using ConstructionWidget.Core.Entities;
 using ConstructionWidget.Core.Interfaces;
 using ConstructionWidget.Core.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -12,18 +13,21 @@ namespace ConstructionWidget.Api.Controllers;
 [Authorize]
 public class AdminController : ControllerBase
 {
-    private readonly ITenantService   _tenantService;
-    private readonly IPriceListService _priceListService;
-    private readonly ITenantContext   _tenantContext;
+    private readonly ITenantService            _tenantService;
+    private readonly IPriceListService         _priceListService;
+    private readonly ITenantContext            _tenantContext;
+    private readonly ITenantDocumentRepository _documentRepo;
 
     public AdminController(
-        ITenantService    tenantService,
-        IPriceListService priceListService,
-        ITenantContext    tenantContext)
+        ITenantService            tenantService,
+        IPriceListService         priceListService,
+        ITenantContext            tenantContext,
+        ITenantDocumentRepository documentRepo)
     {
         _tenantService    = tenantService;
         _priceListService = priceListService;
         _tenantContext    = tenantContext;
+        _documentRepo     = documentRepo;
     }
 
     // ── Tenant settings ────────────────────────────────────────────────────────
@@ -117,4 +121,52 @@ public class AdminController : ControllerBase
             Uri.UnescapeDataString(category));
         return deleted ? NoContent() : NotFound(new { error = "Category not found." });
     }
+
+    // ── Knowledge Base ──────────────────────────────────────────────────────
+
+    [HttpGet("knowledge-base")]
+    public async Task<ActionResult<List<TenantDocument>>> GetDocuments()
+    {
+        var docs = await _documentRepo.GetByTenantAsync(_tenantContext.TenantId);
+        return Ok(docs);
+    }
+
+    [HttpPost("knowledge-base")]
+    public async Task<ActionResult<TenantDocument>> CreateDocument([FromBody] CreateDocumentDto req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Title))
+            return BadRequest(new { error = "Title is required." });
+        if (string.IsNullOrWhiteSpace(req.Content))
+            return BadRequest(new { error = "Content is required." });
+
+        var doc = await _documentRepo.CreateAsync(new TenantDocument
+        {
+            TenantId = _tenantContext.TenantId,
+            Title    = req.Title.Trim(),
+            Content  = req.Content.Trim(),
+            Category = req.Category?.Trim() ?? "general",
+        });
+
+        return Ok(doc);
+    }
+
+    [HttpPut("knowledge-base/{id:guid}")]
+    public async Task<ActionResult<TenantDocument>> UpdateDocument(Guid id, [FromBody] UpdateDocumentDto req)
+    {
+        var doc = await _documentRepo.UpdateAsync(
+            id, _tenantContext.TenantId,
+            req.Title, req.Content, req.Category, req.IsActive);
+
+        return doc is null ? NotFound() : Ok(doc);
+    }
+
+    [HttpDelete("knowledge-base/{id:guid}")]
+    public async Task<IActionResult> DeleteDocument(Guid id)
+    {
+        var deleted = await _documentRepo.DeleteAsync(id, _tenantContext.TenantId);
+        return deleted ? NoContent() : NotFound();
+    }
 }
+
+public record CreateDocumentDto(string Title, string Content, string? Category);
+public record UpdateDocumentDto(string? Title, string? Content, string? Category, bool? IsActive);

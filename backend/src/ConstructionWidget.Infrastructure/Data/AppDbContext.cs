@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<Lead> Leads => Set<Lead>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<TenantDocument> TenantDocuments => Set<TenantDocument>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -53,6 +54,17 @@ public class AppDbContext : DbContext
 
             // Multi-tenancy filter
             e.HasQueryFilter(c => !_tenantContext.IsResolved || c.TenantId == _tenantContext.TenantId);
+        });
+
+        modelBuilder.Entity<TenantDocument>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.HasIndex(d => d.TenantId);
+            e.HasIndex(d => new { d.TenantId, d.IsActive });
+            e.HasOne(d => d.Tenant).WithMany().HasForeignKey(d => d.TenantId);
+
+            // Multi-tenancy filter
+            e.HasQueryFilter(d => !_tenantContext.IsResolved || d.TenantId == _tenantContext.TenantId);
         });
     }
 }

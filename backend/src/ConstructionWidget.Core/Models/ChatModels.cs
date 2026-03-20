@@ -25,6 +25,12 @@ public record LoginRequest(string Email, string Password);
 
 public record LoginResponse(string Token, Guid TenantId, string TenantName);
 
+public record RequestCallbackArgs(
+    [property: JsonPropertyName("customer_name")] string? CustomerName,
+    [property: JsonPropertyName("phone")]          string? Phone,
+    [property: JsonPropertyName("email")]          string? Email,
+    [property: JsonPropertyName("reason")]         string Reason);
+
 public record PriceListRow(
     string Category,
     string Material,

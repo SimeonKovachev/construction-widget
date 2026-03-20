@@ -42,6 +42,19 @@ export interface TenantInfo {
   createdAt: string;
 }
 
+export type LeadStatusExtended = LeadStatus | "escalated";
+
+export interface TenantDocument {
+  id: string;
+  tenantId: string;
+  title: string;
+  content: string;
+  category: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface LoginResponse {
   token: string;
   tenantId: string;

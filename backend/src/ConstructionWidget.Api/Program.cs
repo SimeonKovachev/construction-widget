@@ -53,9 +53,10 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
 // ─── Infrastructure — Repositories ───────────────────────────────────────────
-builder.Services.AddScoped<ILeadRepository,         LeadRepository>();
-builder.Services.AddScoped<ITenantRepository,       TenantRepository>();
-builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
+builder.Services.AddScoped<ILeadRepository,            LeadRepository>();
+builder.Services.AddScoped<ITenantRepository,          TenantRepository>();
+builder.Services.AddScoped<IConversationRepository,    ConversationRepository>();
+builder.Services.AddScoped<ITenantDocumentRepository,  TenantDocumentRepository>();
 
 // ─── Infrastructure — Services ────────────────────────────────────────────────
 builder.Services.AddScoped<TenantContext>();

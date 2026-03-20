@@ -7,8 +7,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenAI;
 using OpenAI.Chat;
-using CalculatePriceArgs = ConstructionWidget.Core.Models.CalculatePriceArgs;
-using SaveLeadArgs       = ConstructionWidget.Core.Models.SaveLeadArgs;
+using CalculatePriceArgs       = ConstructionWidget.Core.Models.CalculatePriceArgs;
+using SaveLeadArgs             = ConstructionWidget.Core.Models.SaveLeadArgs;
+using RequestCallbackArgs      = ConstructionWidget.Core.Models.RequestCallbackArgs;
 
 namespace ConstructionWidget.Infrastructure.Services;
 
@@ -20,14 +21,15 @@ public class OpenAiOptions
 
 public class OpenAiChatService : IOpenAiChatService
 {
-    private readonly IConversationRepository    _conversationRepo;
-    private readonly EstimateService            _estimateService;
-    private readonly ILeadRepository            _leadRepo;
-    private readonly ILeadNotificationService   _notificationService;
-    private readonly ITenantRepository          _tenantRepo;
-    private readonly OpenAIClient               _openAiClient;
-    private readonly OpenAiOptions              _options;
-    private readonly ILogger<OpenAiChatService> _logger;
+    private readonly IConversationRepository      _conversationRepo;
+    private readonly EstimateService              _estimateService;
+    private readonly ILeadRepository              _leadRepo;
+    private readonly ILeadNotificationService     _notificationService;
+    private readonly ITenantRepository            _tenantRepo;
+    private readonly ITenantDocumentRepository    _documentRepo;
+    private readonly OpenAIClient                 _openAiClient;
+    private readonly OpenAiOptions                _options;
+    private readonly ILogger<OpenAiChatService>   _logger;
 
     private const int MaxToolRounds = 6;
     private bool _leadSavedThisRequest = false;
@@ -50,12 +52,29 @@ public class OpenAiChatService : IOpenAiChatService
         }
         """));
 
+    private static readonly ChatTool RequestCallbackTool = ChatTool.CreateFunctionTool(
+        "request_callback",
+        "Request a callback from a real team member. Call this when the customer wants to speak to a real person, manager, or get a phone callback.",
+        BinaryData.FromString("""
+        {
+          "type": "object",
+          "properties": {
+            "customer_name": { "type": "string",  "description": "Customer's name (if provided)" },
+            "phone":         { "type": "string",  "description": "Customer's phone number (if provided)" },
+            "email":         { "type": "string",  "description": "Customer's email (if provided)" },
+            "reason":        { "type": "string",  "description": "Why the customer wants a callback — brief summary of conversation context" }
+          },
+          "required": ["reason"]
+        }
+        """));
+
     public OpenAiChatService(
         IConversationRepository    conversationRepo,
         EstimateService            estimateService,
         ILeadRepository            leadRepo,
         ILeadNotificationService   notificationService,
         ITenantRepository          tenantRepo,
+        ITenantDocumentRepository  documentRepo,
         OpenAIClient               openAiClient,
         IOptions<OpenAiOptions>    options,
         ILogger<OpenAiChatService> logger)
@@ -65,6 +84,7 @@ public class OpenAiChatService : IOpenAiChatService
         _leadRepo            = leadRepo;
         _notificationService = notificationService;
         _tenantRepo          = tenantRepo;
+        _documentRepo        = documentRepo;
         _openAiClient        = openAiClient;
         _options             = options.Value;
         _logger              = logger;
@@ -75,11 +95,15 @@ public class OpenAiChatService : IOpenAiChatService
         var config = await _estimateService.GetPricingConfigAsync(tenantId);
         var sb     = new StringBuilder();
 
-        sb.Append("You are a professional, friendly sales assistant. ");
-        sb.Append("Start by greeting the customer warmly. ");
-        sb.Append("Do NOT immediately ask for product details — let the conversation flow naturally. ");
-        sb.Append("Only ask for dimensions and material when the customer expresses interest in a quote. ");
+        // ── Core personality ──────────────────────────────────────────────────
+        sb.AppendLine("You are a warm, friendly, and empathetic sales assistant — think of yourself as a real person chatting with a customer, NOT a calculator or FAQ bot.");
+        sb.AppendLine("Write like a real human: short sentences, natural language, no bullet lists, no walls of text.");
+        sb.AppendLine("Keep every response to 2-3 sentences max unless you are giving a detailed multi-item price breakdown.");
+        sb.AppendLine("Match the customer's energy — if they are casual, be casual. If formal, be formal.");
+        sb.AppendLine("Never start two consecutive responses with the same word. Vary your openings.");
+        sb.AppendLine();
 
+        // ── Product catalog ──────────────────────────────────────────────────
         string categoryDescription;
 
         if (config?.Categories is { Count: > 0 } cats)
@@ -88,23 +112,82 @@ public class OpenAiChatService : IOpenAiChatService
             foreach (var (cat, catPricing) in cats)
                 sb.AppendLine($"- Category \"{cat}\": available materials: {string.Join(", ", catPricing.Materials.Keys)}");
 
-            sb.Append("Only quote products that exist in the catalog above. ");
-            sb.Append("If the customer asks for something not in the catalog, say it is not available. ");
+            sb.AppendLine("Only quote products that exist in the catalog above. If the customer asks for something not in the catalog, let them know it is not available and suggest what IS available.");
             categoryDescription = "Product category. Available: " +
                 string.Join(", ", cats.Keys.Select(k => $"\"{k}\""));
         }
         else
         {
-            sb.Append("No product catalog has been configured yet. ");
-            sb.Append("If asked for a price quote, politely explain that pricing is not set up yet. ");
+            sb.AppendLine("No product catalog has been configured yet. If asked for a price quote, politely explain that pricing is not set up yet and offer to connect them with the team.");
             categoryDescription = "Product category (e.g. \"windows\", \"doors\", \"fencing\")";
         }
+        sb.AppendLine();
 
-        sb.Append("When you have category, material, width, height, and unit — call 'calculate_price' immediately. ");
-        sb.Append("After quoting the price, send ONE message asking for: full name, phone number, email address (optional), and any delivery or scheduling preferences. ");
-        sb.Append("Wait for the customer's reply, then call 'save_lead' EXACTLY ONCE — include any delivery preferences in the 'requirements' field. ");
-        sb.Append("After calling save_lead, confirm the lead is saved and wish them well. Do NOT ask any more questions and do NOT call save_lead again. ");
-        sb.Append("Be concise, warm, and professional.");
+        // ── Knowledge base (company documents) ──────────────────────────────
+        var docs = await _documentRepo.GetActiveByTenantAsync(tenantId);
+        if (docs.Count > 0)
+        {
+            sb.AppendLine("=== COMPANY KNOWLEDGE BASE ===");
+            sb.AppendLine("Use the following company information to answer customer questions accurately. If a question is NOT covered below, say you are not sure about the specifics and offer to have a team member follow up.");
+            sb.AppendLine();
+            foreach (var doc in docs)
+            {
+                sb.AppendLine($"--- {doc.Title} ---");
+                sb.AppendLine(doc.Content);
+                sb.AppendLine();
+            }
+        }
+
+        // ── Quoting flow ─────────────────────────────────────────────────────
+        sb.AppendLine("=== QUOTING FLOW ===");
+        sb.AppendLine("When the customer wants a price quote, gather the product details naturally through conversation — do not interrogate them with a list of fields.");
+        sb.AppendLine("Once you have category, material, width, height, and unit — call 'calculate_price' immediately.");
+        sb.AppendLine("Present the price confidently with brief value context (e.g. 'That includes premium-grade materials and professional finishing').");
+        sb.AppendLine("After quoting, send ONE message asking for: full name, phone number, email (optional), and any delivery or scheduling preferences.");
+        sb.AppendLine("Wait for their reply, then call 'save_lead' EXACTLY ONCE. Include delivery preferences in the 'requirements' field.");
+        sb.AppendLine("After save_lead succeeds, send one warm closing message and stop. Do NOT ask more questions or call save_lead again.");
+        sb.AppendLine();
+
+        // ── General questions ─────────────────────────────────────────────────
+        sb.AppendLine("=== GENERAL QUESTIONS ===");
+        sb.AppendLine("Customers may ask about products, materials, warranties, installation, delivery, or other topics without wanting a quote.");
+        sb.AppendLine("Answer helpfully using the knowledge base above if available. If not covered, give general helpful information and offer to connect them with the team for specifics.");
+        sb.AppendLine("Do NOT force every conversation into the quoting flow. Let the customer guide the conversation.");
+        sb.AppendLine();
+
+        // ── Objection handling ────────────────────────────────────────────────
+        sb.AppendLine("=== OBJECTION HANDLING ===");
+        sb.AppendLine("If the customer says the price is too high or expresses shock:");
+        sb.AppendLine("1. Empathize FIRST: 'I completely understand — that is a significant investment.'");
+        sb.AppendLine("2. Briefly explain what is included (quality materials, craftsmanship, etc.).");
+        sb.AppendLine("3. Suggest alternatives: different material, fewer units, or smaller dimensions.");
+        sb.AppendLine("4. Ask about their budget range so you can find something that works.");
+        sb.AppendLine("5. Offer to have a manager reach out with a custom deal.");
+        sb.AppendLine("NEVER just re-quote the same price they already rejected. NEVER repeat information they have already seen.");
+        sb.AppendLine();
+
+        // ── Rejection handling ────────────────────────────────────────────────
+        sb.AppendLine("=== REJECTION HANDLING ===");
+        sb.AppendLine("If the customer says 'no', 'I don't want anything', 'not interested', or any clear rejection:");
+        sb.AppendLine("Accept IMMEDIATELY. Say something like: 'No problem at all! We are here whenever you need us. Have a great day!'");
+        sb.AppendLine("Do NOT push alternatives, do NOT re-quote, do NOT try to convince them. ONE warm goodbye and stop.");
+        sb.AppendLine("If the customer rejects TWICE, stop completely. No more selling.");
+        sb.AppendLine();
+
+        // ── Escalation to real person ─────────────────────────────────────────
+        sb.AppendLine("=== ESCALATION ===");
+        sb.AppendLine("If the customer asks to talk to a real person, speak to a manager, get a phone call, or says 'I want a human':");
+        sb.AppendLine("1. Ask for their name and phone number (if you do not already have them).");
+        sb.AppendLine("2. Call 'request_callback' with their details and a brief reason.");
+        sb.AppendLine("3. Confirm: 'Absolutely! I have passed your details to our team — someone will reach out to you shortly.'");
+        sb.AppendLine();
+
+        // ── Emotional intelligence ────────────────────────────────────────────
+        sb.AppendLine("=== EMOTIONAL INTELLIGENCE ===");
+        sb.AppendLine("If the customer uses ALL CAPS, lots of exclamation marks, or sounds frustrated/angry:");
+        sb.AppendLine("Acknowledge their feelings BEFORE responding to the content: 'I hear you, and I am sorry for the frustration.'");
+        sb.AppendLine("Never be defensive. Never argue. Stay calm, professional, and helpful.");
+        sb.AppendLine("If the customer insults prices or the company, stay professional and offer solutions or escalation.");
 
         var safeDesc = categoryDescription.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
@@ -135,7 +218,7 @@ public class OpenAiChatService : IOpenAiChatService
         history.Add(new UserChatMessage(userMessage));
 
         var chatClient  = _openAiClient.GetChatClient(_options.Model);
-        var chatOptions = new ChatCompletionOptions { Tools = { calculatePriceTool, SaveLeadTool } };
+        var chatOptions = new ChatCompletionOptions { Tools = { calculatePriceTool, SaveLeadTool, RequestCallbackTool } };
 
         for (int round = 0; round < MaxToolRounds && !ct.IsCancellationRequested; round++)
         {
@@ -262,6 +345,39 @@ public class OpenAiChatService : IOpenAiChatService
                     }
 
                     return $"Lead saved for '{args.CustomerName}' ({args.Phone}).";
+                }
+
+                case "request_callback":
+                {
+                    var args = JsonSerializer.Deserialize<RequestCallbackArgs>(
+                        argsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (args is null) return "Error: could not parse request_callback arguments.";
+
+                    // Save as escalated lead so it appears prominently in admin dashboard
+                    var lead = await _leadRepo.CreateAsync(new Lead
+                    {
+                        TenantId     = tenantId,
+                        SessionId    = sessionId,
+                        CustomerName = args.CustomerName ?? "Callback Request",
+                        Phone        = args.Phone ?? string.Empty,
+                        Email        = string.IsNullOrWhiteSpace(args.Email) ? null : args.Email,
+                        Requirements = $"[CALLBACK REQUEST] {args.Reason}",
+                        QuotedPrice  = 0,
+                        Status       = "escalated",
+                    });
+
+                    // Send urgent email notification to admin
+                    var tenant = await _tenantRepo.GetByIdAsync(tenantId);
+                    if (tenant is not null)
+                    {
+                        _ = Task.Run(async () =>
+                        {
+                            try { await _notificationService.NotifyLeadAsync(lead, tenant); }
+                            catch (Exception ex) { _logger.LogWarning(ex, "Callback notification failed for {TenantId}", tenantId); }
+                        }, CancellationToken.None);
+                    }
+
+                    return "Callback request saved and team notified. A team member will reach out to the customer shortly.";
                 }
 
                 default: return $"Unknown tool: {toolName}";

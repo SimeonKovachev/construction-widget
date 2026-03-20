@@ -11,7 +11,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.4" />
     <!-- Design-time only — must NOT include runtime to avoid Roslyn/old BCL assemblies in output -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.4">
-      <IncludeAssets>build; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.4" />
