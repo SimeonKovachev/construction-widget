@@ -7,7 +7,9 @@ import type { TenantDocument } from "@/lib/types";
 import Button from "@/components/ui/Button";
 import IconButton from "@/components/ui/IconButton";
 import { Input, Textarea } from "@/components/ui/Input";
-import { Plus, Pencil, Trash2, X, BookOpen, FileText, Upload, Loader2 } from "lucide-react";
+import Select from "@/components/ui/Select";
+import Modal from "@/components/ui/Modal";
+import { Plus, Pencil, Trash2, BookOpen, FileText, Upload, Loader2 } from "lucide-react";
 
 const CATEGORIES = ["general", "warranty", "delivery", "installation", "faq", "pricing", "other"];
 
@@ -254,112 +256,104 @@ export default function KnowledgeBasePage() {
       )}
 
       {/* Create/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h2 className="text-lg font-bold text-slate-900">
-                {editingDoc ? "Edit Document" : "Add Document"}
-              </h2>
-              <IconButton onClick={() => setShowModal(false)}>
-                <X className="w-5 h-5" />
-              </IconButton>
-            </div>
-            <div className="px-6 py-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
-                <Input
-                  type="text"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  placeholder="e.g. Warranty Policy, Delivery Info, FAQ"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
-                <select
-                  value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all capitalize cursor-pointer"
-                >
-                  {CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat} className="capitalize">
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-              </div>
+      <Modal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        title={editingDoc ? "Edit Document" : "Add Document"}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setShowModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={!form.title.trim() || !form.content.trim()}
+              loading={saving}
+            >
+              {editingDoc ? "Save Changes" : "Add Document"}
+            </Button>
+          </>
+        }
+      >
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
+          <Input
+            type="text"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            placeholder="e.g. Warranty Policy, Delivery Info, FAQ"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+          <Select
+            value={form.category}
+            onChange={(e) => setForm({ ...form, category: e.target.value })}
+            className="capitalize"
+          >
+            {CATEGORIES.map((cat) => (
+              <option key={cat} value={cat} className="capitalize">
+                {cat}
+              </option>
+            ))}
+          </Select>
+        </div>
 
-              {/* File upload dropzone */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Upload Document (optional)
-                </label>
-                <div
-                  {...getRootProps()}
-                  className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
-                    isDragActive
-                      ? "border-blue-400 bg-blue-50"
-                      : extractError
-                        ? "border-red-300 bg-red-50"
-                        : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
-                  }`}
-                >
-                  <input {...getInputProps()} />
-                  {extracting ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
-                      <p className="text-sm text-blue-600 font-medium">Extracting text...</p>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2">
-                      <Upload className="w-6 h-6 text-slate-400" />
-                      <p className="text-sm text-slate-600">
-                        {isDragActive
-                          ? "Drop your file here..."
-                          : "Drop a PDF or DOCX file here, or click to browse"}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        Extracted text will appear in the content field below for review
-                      </p>
-                    </div>
-                  )}
-                  {extractError && (
-                    <p className="text-sm text-red-500 mt-2">{extractError}</p>
-                  )}
-                </div>
+        {/* File upload dropzone */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Upload Document (optional)
+          </label>
+          <div
+            {...getRootProps()}
+            className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
+              isDragActive
+                ? "border-blue-400 bg-blue-50"
+                : extractError
+                  ? "border-red-300 bg-red-50"
+                  : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
+            }`}
+          >
+            <input {...getInputProps()} />
+            {extracting ? (
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                <p className="text-sm text-blue-600 font-medium">Extracting text...</p>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Content
-                  <span className="text-slate-400 font-normal ml-2">
-                    ({form.content.length.toLocaleString()} characters)
-                  </span>
-                </label>
-                <Textarea
-                  value={form.content}
-                  onChange={(e) => setForm({ ...form, content: e.target.value })}
-                  placeholder="Write, paste, or upload a file above. The AI chatbot will use this to answer customer questions accurately."
-                  rows={12}
-                />
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <Upload className="w-6 h-6 text-slate-400" />
+                <p className="text-sm text-slate-600">
+                  {isDragActive
+                    ? "Drop your file here..."
+                    : "Drop a PDF or DOCX file here, or click to browse"}
+                </p>
+                <p className="text-xs text-slate-400">
+                  Extracted text will appear in the content field below for review
+                </p>
               </div>
-            </div>
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
-              <Button variant="ghost" onClick={() => setShowModal(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={!form.title.trim() || !form.content.trim()}
-                loading={saving}
-              >
-                {editingDoc ? "Save Changes" : "Add Document"}
-              </Button>
-            </div>
+            )}
+            {extractError && (
+              <p className="text-sm text-red-500 mt-2">{extractError}</p>
+            )}
           </div>
         </div>
-      )}
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Content
+            <span className="text-slate-400 font-normal ml-2">
+              ({form.content.length.toLocaleString()} characters)
+            </span>
+          </label>
+          <Textarea
+            value={form.content}
+            onChange={(e) => setForm({ ...form, content: e.target.value })}
+            placeholder="Write, paste, or upload a file above. The AI chatbot will use this to answer customer questions accurately."
+            rows={12}
+          />
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -4,9 +4,9 @@ import { Copy, Check, Building2, Mail, Code2 } from "lucide-react";
 import { TenantInfo } from "@/lib/types";
 import api from "@/lib/api";
 import Button from "@/components/ui/Button";
+import IconButton from "@/components/ui/IconButton";
 import { Input } from "@/components/ui/Input";
 
-// Input styling is now handled by the shared <Input> component
 
 export default function SettingsPage() {
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
@@ -105,13 +105,15 @@ export default function SettingsPage() {
           <pre className="bg-slate-900 text-emerald-400 text-xs p-4 overflow-x-auto whitespace-pre leading-relaxed">
             {embedSnippet}
           </pre>
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={copyEmbed}
-            className="absolute top-3 right-3 flex items-center gap-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-2.5 py-1.5 rounded-lg transition-all"
+            className="absolute top-3 right-3 !bg-slate-700 hover:!bg-slate-600 !text-slate-300 hover:!text-white !shadow-none"
           >
             {copiedEmbed ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
             {copiedEmbed ? "Copied!" : "Copy"}
-          </button>
+          </Button>
         </div>
 
         <div className="mt-4 flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
@@ -119,12 +121,9 @@ export default function SettingsPage() {
           <code className="flex-1 text-xs bg-white border border-slate-200 px-2.5 py-1.5 rounded-lg text-slate-700 font-mono truncate">
             {tenant?.apiKey}
           </code>
-          <button
-            onClick={copyApiKey}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0"
-          >
+          <IconButton onClick={copyApiKey} size="sm">
             {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-          </button>
+          </IconButton>
         </div>
       </div>
 
@@ -141,12 +140,11 @@ export default function SettingsPage() {
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">
               Notification Email
             </label>
-            <input
+            <Input
               type="email"
               value={form.notificationEmail}
               onChange={(e) => setForm((f) => ({ ...f, notificationEmail: e.target.value }))}
               placeholder="owner@company.com"
-              className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
             />
             <p className="text-xs text-slate-400 mt-1.5">
               You&apos;ll receive an email whenever a new lead is captured by the widget.
@@ -165,41 +163,37 @@ export default function SettingsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">SMTP Host</label>
-                  <input
+                  <Input
                     value={form.smtpHost}
                     onChange={(e) => setForm((f) => ({ ...f, smtpHost: e.target.value }))}
                     placeholder="smtp.gmail.com"
-                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Port</label>
-                  <input
+                  <Input
                     type="number"
                     value={form.smtpPort}
                     onChange={(e) => setForm((f) => ({ ...f, smtpPort: e.target.value }))}
                     placeholder="587"
-                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
                   />
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Username</label>
-                <input
+                <Input
                   value={form.smtpUser}
                   onChange={(e) => setForm((f) => ({ ...f, smtpUser: e.target.value }))}
                   placeholder="you@gmail.com"
-                  className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Password</label>
-                <input
+                <Input
                   type="password"
                   value={form.smtpPassword}
                   onChange={(e) => setForm((f) => ({ ...f, smtpPassword: e.target.value }))}
                   placeholder="App password or SMTP password"
-                  className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
                 />
               </div>
             </div>

@@ -4,6 +4,9 @@ import { useRouter } from "next/navigation";
 import { isLoggedIn, clearToken } from "@/lib/auth";
 import api from "@/lib/api";
 import type { TenantSummary, PlatformStats, CreateTenantForm, TenantDetail } from "@/lib/types";
+import Button from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import Modal from "@/components/ui/Modal";
 
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
@@ -41,71 +44,68 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
     }
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <div className="flex justify-between items-center mb-5">
-          <h2 className="text-lg font-bold text-slate-900">Create New Tenant</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl font-bold leading-none">&times;</button>
+  if (result) {
+    return (
+      <Modal open onClose={onClose} title="Create New Tenant" maxWidth="max-w-md">
+        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-green-700 text-sm font-medium">
+          Tenant created successfully!
         </div>
-
-        {result ? (
-          <div className="space-y-3">
-            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-green-700 text-sm font-medium">
-              Tenant created successfully!
-            </div>
-            <div className="bg-slate-50 rounded-xl p-4 text-sm space-y-2">
-              <div><span className="text-slate-500 font-medium">Name:</span> <span className="font-semibold">{result.name}</span></div>
-              <div><span className="text-slate-500 font-medium">Email:</span> {result.ownerEmail}</div>
-              <div className="pt-1">
-                <span className="text-slate-500 font-medium block mb-1">API Key:</span>
-                <code className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs break-all block font-mono">{result.apiKey}</code>
-              </div>
-            </div>
-            <p className="text-xs text-slate-500">Share the login URL, email, and temporary password with your client.</p>
-            <button onClick={onClose} className="w-full bg-slate-900 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-slate-800 transition-colors">
-              Done
-            </button>
+        <div className="bg-slate-50 rounded-xl p-4 text-sm space-y-2">
+          <div><span className="text-slate-500 font-medium">Name:</span> <span className="font-semibold">{result.name}</span></div>
+          <div><span className="text-slate-500 font-medium">Email:</span> {result.ownerEmail}</div>
+          <div className="pt-1">
+            <span className="text-slate-500 font-medium block mb-1">API Key:</span>
+            <code className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs break-all block font-mono">{result.apiKey}</code>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {([
-              { label: "Company name",      field: "name",              type: "text",  placeholder: "Acme Fencing Co" },
-              { label: "Owner email",        field: "ownerEmail",        type: "email", placeholder: "owner@company.com" },
-              { label: "Temporary password", field: "password",          type: "text",  placeholder: "Min 8 characters" },
-              { label: "Notification email", field: "notificationEmail", type: "email", placeholder: "Defaults to owner email" },
-            ] as const).map(({ label, field, type, placeholder }) => (
-              <div key={field}>
-                <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-                <input
-                  type={type}
-                  value={form[field]}
-                  onChange={set(field)}
-                  placeholder={placeholder}
-                  required={field !== "notificationEmail"}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-              </div>
-            ))}
+        </div>
+        <p className="text-xs text-slate-500">Share the login URL, email, and temporary password with your client.</p>
+        <div className="flex justify-end">
+          <Button variant="secondary" onClick={onClose}>Done</Button>
+        </div>
+      </Modal>
+    );
+  }
 
-            {error && (
-              <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</div>
-            )}
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Create New Tenant"
+      maxWidth="max-w-md"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="danger" onClick={handleSubmit} loading={saving} disabled={!form.name || !form.ownerEmail || !form.password}>
+            {saving ? "Creating..." : "Create Tenant"}
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {([
+          { label: "Company name",      field: "name",              type: "text",  placeholder: "Acme Fencing Co" },
+          { label: "Owner email",        field: "ownerEmail",        type: "email", placeholder: "owner@company.com" },
+          { label: "Temporary password", field: "password",          type: "text",  placeholder: "Min 8 characters" },
+          { label: "Notification email", field: "notificationEmail", type: "email", placeholder: "Defaults to owner email" },
+        ] as const).map(({ label, field, type, placeholder }) => (
+          <div key={field}>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+            <Input
+              type={type}
+              value={form[field]}
+              onChange={set(field)}
+              placeholder={placeholder}
+              required={field !== "notificationEmail"}
+              className="focus:!ring-red-500"
+            />
+          </div>
+        ))}
 
-            <div className="flex gap-3 pt-1">
-              <button type="button" onClick={onClose}
-                className="flex-1 border border-slate-300 rounded-xl py-2.5 text-sm font-medium hover:bg-slate-50 transition-colors">
-                Cancel
-              </button>
-              <button type="submit" disabled={saving}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50 transition-colors">
-                {saving ? "Creating..." : "Create Tenant"}
-              </button>
-            </div>
-          </form>
+        {error && (
+          <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</div>
         )}
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -171,12 +171,14 @@ export default function DashboardPage() {
             <p className="text-slate-400 text-xs mt-0.5">Platform Operator Dashboard</p>
           </div>
         </div>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={handleLogout}
-          className="text-slate-300 hover:text-white text-sm border border-slate-600 rounded-lg px-3 py-1.5 transition-colors hover:border-slate-400"
+          className="!text-slate-300 hover:!text-white !border !border-slate-600 hover:!border-slate-400"
         >
           Sign out
-        </button>
+        </Button>
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8">
@@ -199,12 +201,9 @@ export default function DashboardPage() {
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
               <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
                 <h2 className="font-bold text-slate-900">Tenants</h2>
-                <button
-                  onClick={() => setShowCreate(true)}
-                  className="bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl px-4 py-2 transition-colors"
-                >
+                <Button variant="danger" size="sm" onClick={() => setShowCreate(true)}>
                   + New Tenant
-                </button>
+                </Button>
               </div>
 
               <table className="w-full text-sm">
@@ -232,17 +231,19 @@ export default function DashboardPage() {
                         {new Date(t.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4">
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => toggleTenant(t.id)}
                           disabled={toggling === t.id}
-                          className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
+                          className={
                             t.isActive
-                              ? "border-orange-200 text-orange-600 hover:bg-orange-50"
-                              : "border-green-200 text-green-600 hover:bg-green-50"
-                          }`}
+                              ? "!text-orange-600 !border !border-orange-200 hover:!bg-orange-50"
+                              : "!text-green-600 !border !border-green-200 hover:!bg-green-50"
+                          }
                         >
                           {toggling === t.id ? "..." : t.isActive ? "Deactivate" : "Activate"}
-                        </button>
+                        </Button>
                       </td>
                     </tr>
                   ))}
