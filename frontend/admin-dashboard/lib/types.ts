@@ -60,3 +60,18 @@ export interface LoginResponse {
   tenantId: string;
   tenantName: string;
 }
+
+// ── Analytics ────────────────────────────────────────────────────────────────
+
+export type AnalyticsRange = "7d" | "30d" | "90d";
+
+export interface AnalyticsData {
+  leadsOverTime: { date: string; count: number }[];
+  revenueOverTime: { date: string; revenue: number }[];
+  totalConversations: number;
+  totalLeads: number;
+  conversionRate: number;
+  peakHours: { hour: number; count: number }[];
+  topQuestions: { question: string; count: number }[];
+  leadsByStatus: { status: string; count: number }[];
+}

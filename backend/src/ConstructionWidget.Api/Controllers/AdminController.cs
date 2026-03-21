@@ -1,5 +1,6 @@
 using ConstructionWidget.Application.DTOs;
 using ConstructionWidget.Application.Interfaces;
+using ConstructionWidget.Core.DTOs;
 using ConstructionWidget.Core.Entities;
 using ConstructionWidget.Core.Interfaces;
 using ConstructionWidget.Core.Models;
@@ -15,6 +16,7 @@ public class AdminController : ControllerBase
 {
     private readonly ITenantService            _tenantService;
     private readonly IPriceListService         _priceListService;
+    private readonly IAnalyticsService         _analyticsService;
     private readonly ITenantContext            _tenantContext;
     private readonly ITenantDocumentRepository _documentRepo;
     private readonly IDocumentTextExtractor    _textExtractor;
@@ -22,15 +24,26 @@ public class AdminController : ControllerBase
     public AdminController(
         ITenantService            tenantService,
         IPriceListService         priceListService,
+        IAnalyticsService         analyticsService,
         ITenantContext            tenantContext,
         ITenantDocumentRepository documentRepo,
         IDocumentTextExtractor    textExtractor)
     {
         _tenantService    = tenantService;
         _priceListService = priceListService;
+        _analyticsService = analyticsService;
         _tenantContext    = tenantContext;
         _documentRepo     = documentRepo;
         _textExtractor    = textExtractor;
+    }
+
+    // ── Analytics ─────────────────────────────────────────────────────────────
+
+    [HttpGet("analytics")]
+    public async Task<ActionResult<AnalyticsDto>> GetAnalytics([FromQuery] string range = "30d")
+    {
+        var days = range switch { "7d" => 7, "30d" => 30, "90d" => 90, _ => 30 };
+        return Ok(await _analyticsService.GetAnalyticsAsync(_tenantContext.TenantId, days));
     }
 
     // ── Tenant settings ────────────────────────────────────────────────────────

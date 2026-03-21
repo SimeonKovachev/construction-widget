@@ -74,6 +74,7 @@ builder.Services.AddScoped<ILeadService,       LeadService>();
 builder.Services.AddScoped<ITenantService,     TenantService>();
 builder.Services.AddScoped<IPriceListService,  PriceListService>();
 builder.Services.AddScoped<ISuperAdminService, SuperAdminService>();
+builder.Services.AddScoped<IAnalyticsService,  AnalyticsService>();
 
 // ─── Caching + Singleton OpenAI client ───────────────────────────────────────
 builder.Services.AddMemoryCache();
