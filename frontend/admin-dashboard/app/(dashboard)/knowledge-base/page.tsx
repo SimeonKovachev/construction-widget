@@ -141,7 +141,7 @@ export default function KnowledgeBasePage() {
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
           style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)" }}
         >
           <Plus className="w-4 h-4" /> Add Document
@@ -365,7 +365,7 @@ export default function KnowledgeBasePage() {
               <button
                 onClick={handleSave}
                 disabled={saving || !form.title.trim() || !form.content.trim()}
-                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 hover:brightness-110 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
                 style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)" }}
               >
                 {saving ? "Saving..." : editingDoc ? "Save Changes" : "Add Document"}

@@ -22,34 +22,50 @@ export default function ChatButton({ isOpen, onClick }: ChatButtonProps) {
         justifyContent: "center",
         boxShadow: "0 4px 20px rgba(37, 99, 235, 0.4)",
         zIndex: 10000,
-        transition: "transform 0.2s, box-shadow 0.2s",
+        transition: "transform 0.2s ease, box-shadow 0.2s ease",
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.1)";
+        e.currentTarget.style.transform = "scale(1.1)";
+        e.currentTarget.style.boxShadow = "0 6px 28px rgba(37, 99, 235, 0.55)";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
+        e.currentTarget.style.transform = "scale(1)";
+        e.currentTarget.style.boxShadow = "0 4px 20px rgba(37, 99, 235, 0.4)";
+      }}
+      onMouseDown={(e) => {
+        e.currentTarget.style.transform = "scale(0.95)";
+      }}
+      onMouseUp={(e) => {
+        e.currentTarget.style.transform = "scale(1.1)";
       }}
       aria-label={isOpen ? "Close chat" : "Open chat"}
     >
+      {/* Chat icon */}
       <div
         style={{
           transition: "opacity 0.2s, transform 0.2s",
           opacity: isOpen ? 0 : 1,
           transform: isOpen ? "rotate(90deg) scale(0)" : "rotate(0deg) scale(1)",
           position: "absolute",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
         <svg width="26" height="26" viewBox="0 0 24 24" fill="white">
           <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" />
         </svg>
       </div>
+      {/* Close icon */}
       <div
         style={{
           transition: "opacity 0.2s, transform 0.2s",
           opacity: isOpen ? 1 : 0,
           transform: isOpen ? "rotate(0deg) scale(1)" : "rotate(-90deg) scale(0)",
           position: "absolute",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="white">

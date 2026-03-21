@@ -206,7 +206,7 @@ export default function SettingsPage() {
           <div className="pt-2">
             <button
               type="submit"
-              className="flex items-center gap-2 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-all"
+              className="flex items-center gap-2 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-all hover:brightness-110 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
               style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)", boxShadow: "0 2px 8px rgba(37,99,235,0.30)" }}
             >
               {saved ? (

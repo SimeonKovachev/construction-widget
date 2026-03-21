@@ -41,7 +41,7 @@ function InlineNum({ value, onSave, prefix = "$", placeholder = "—", allowEmpt
     return (
       <button
         onClick={startEdit}
-        className="group flex items-center gap-1 text-sm text-slate-700 hover:text-blue-600 transition-colors"
+        className="group flex items-center gap-1 text-sm text-slate-700 hover:text-blue-600 transition-colors cursor-pointer"
         title="Click to edit"
       >
         <span>{value !== undefined ? `${prefix}${value}` : placeholder}</span>
@@ -61,7 +61,7 @@ function InlineNum({ value, onSave, prefix = "$", placeholder = "—", allowEmpt
         onChange={e => setDraft(e.target.value)}
         onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") cancel(); }}
         onBlur={commit}
-        className="w-20 border border-blue-400 rounded px-2 py-0.5 text-sm outline-none"
+        className="w-20 border border-blue-400 rounded px-2 py-0.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 transition-all"
       />
     </div>
   );
@@ -115,7 +115,7 @@ function GlobalsEditor({ markup, labor, onSave }: GlobalsEditorProps) {
       <button
         onClick={handleSave}
         disabled={saving}
-        className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors"
+        className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
       >
         {saving
           ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -177,30 +177,30 @@ function AddMaterialForm({ category, onAdd }: AddMaterialFormProps) {
           onChange={e => setMaterial(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") setOpen(false); }}
           placeholder="Material name"
-          className="w-full border border-blue-300 rounded px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-400"
+          className="w-full border border-blue-300 rounded px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-400 transition-all"
         />
       </td>
       <td className="px-3 py-2">
         <input type="number" min={0} value={base} onChange={e => setBase(e.target.value)}
-          placeholder="0" className="w-20 border border-blue-300 rounded px-2 py-1 text-xs outline-none" />
+          placeholder="0" className="w-20 border border-blue-300 rounded px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-400 transition-all" />
       </td>
       <td className="px-3 py-2">
         <input type="number" min={0} value={perSqFt} onChange={e => setPerSqFt(e.target.value)}
-          placeholder="0" className="w-20 border border-blue-300 rounded px-2 py-1 text-xs outline-none" />
+          placeholder="0" className="w-20 border border-blue-300 rounded px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-400 transition-all" />
       </td>
       <td className="px-3 py-2">
         <input type="number" min={0} value={minPrice} onChange={e => setMinPrice(e.target.value)}
-          placeholder="optional" className="w-20 border border-blue-300 rounded px-2 py-1 text-xs outline-none" />
+          placeholder="optional" className="w-20 border border-blue-300 rounded px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-400 transition-all" />
       </td>
       <td className="px-3 py-2">
         <div className="flex gap-1">
           <button onClick={handleAdd} disabled={saving || !material.trim()}
-            className="p-1.5 bg-blue-600 text-white rounded disabled:opacity-50 hover:bg-blue-700">
+            className="p-1.5 bg-blue-600 text-white rounded disabled:opacity-50 hover:bg-blue-700 transition-all hover:shadow-md active:scale-95">
             {saving
               ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
               : <Check className="w-3 h-3" />}
           </button>
-          <button onClick={() => setOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100">
+          <button onClick={() => setOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 transition-all">
             <X className="w-3 h-3" />
           </button>
         </div>
@@ -443,7 +443,7 @@ export default function PriceListPage() {
               <button
                 onClick={addCategory}
                 disabled={addingCat || !newCat.trim()}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
               >
                 {addingCat
                   ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

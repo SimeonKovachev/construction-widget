@@ -86,8 +86,25 @@ export default function ChatWindow({ tenantId, apiUrl, tenantName, greeting, onC
             border: "none",
             color: "rgba(255,255,255,0.8)",
             cursor: "pointer",
-            padding: "4px",
+            padding: "6px",
             borderRadius: "50%",
+            transition: "background-color 0.15s, color 0.15s, transform 0.15s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.2)";
+            e.currentTarget.style.color = "#fff";
+            e.currentTarget.style.transform = "scale(1.1)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "transparent";
+            e.currentTarget.style.color = "rgba(255,255,255,0.8)";
+            e.currentTarget.style.transform = "scale(1)";
+          }}
+          onMouseDown={(e) => {
+            e.currentTarget.style.transform = "scale(0.9)";
+          }}
+          onMouseUp={(e) => {
+            e.currentTarget.style.transform = "scale(1.1)";
           }}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">

@@ -34,6 +34,8 @@ export default function InputBar({ onSend, disabled }: InputBarProps) {
     }
   }
 
+  const isDisabled = disabled || !text.trim();
+
   return (
     <div
       style={{
@@ -67,28 +69,55 @@ export default function InputBar({ onSend, disabled }: InputBarProps) {
           maxHeight: "100px",
           overflowY: "auto",
           opacity: disabled ? 0.6 : 1,
+          transition: "border-color 0.15s, box-shadow 0.15s",
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.borderColor = "#2563eb";
+          e.currentTarget.style.boxShadow = "0 0 0 2px rgba(37,99,235,0.15)";
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.borderColor = "#d1d5db";
+          e.currentTarget.style.boxShadow = "none";
         }}
       />
       <button
         onClick={handleSend}
-        disabled={disabled || !text.trim()}
+        disabled={isDisabled}
         style={{
           width: "36px",
           height: "36px",
           borderRadius: "50%",
           backgroundColor: "#2563eb",
           border: "none",
-          cursor: disabled || !text.trim() ? "not-allowed" : "pointer",
-          opacity: disabled || !text.trim() ? 0.7 : 1,
+          cursor: isDisabled ? "not-allowed" : "pointer",
+          opacity: isDisabled ? 0.5 : 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
-          transition: "opacity 0.15s",
+          transition: "opacity 0.15s, transform 0.15s, box-shadow 0.15s, background-color 0.15s",
+        }}
+        onMouseEnter={(e) => {
+          if (isDisabled) return;
+          e.currentTarget.style.backgroundColor = "#1d4ed8";
+          e.currentTarget.style.transform = "scale(1.1)";
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.4)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = "#2563eb";
+          e.currentTarget.style.transform = "scale(1)";
+          e.currentTarget.style.boxShadow = "none";
+        }}
+        onMouseDown={(e) => {
+          if (isDisabled) return;
+          e.currentTarget.style.transform = "scale(0.9)";
+        }}
+        onMouseUp={(e) => {
+          if (isDisabled) return;
+          e.currentTarget.style.transform = "scale(1.1)";
         }}
       >
         {disabled ? (
-          /* Spinning loader replaces the arrow while AI is responding */
           <div
             style={{
               width: "16px",

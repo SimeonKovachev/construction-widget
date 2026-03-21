@@ -163,7 +163,7 @@ function LeadDrawer({ lead, onClose, onSaved, onDeleted }: DrawerProps) {
                     className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all ${
                       active
                         ? `${meta.bg} ${meta.text} border-transparent ring-2 ring-offset-1 ring-current`
-                        : "bg-white text-slate-400 border-slate-200 hover:border-slate-300"
+                        : "bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600"
                     }`}
                   >
                     {meta.label}
