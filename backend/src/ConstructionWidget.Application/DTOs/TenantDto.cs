@@ -10,6 +10,13 @@ public record TenantDto(
     string? SmtpHost,
     int?    SmtpPort,
     string? SmtpUser,
+    string? PrimaryColor,
+    string? SecondaryColor,
+    string? LogoUrl,
+    string? WelcomeMessage,
+    string? WidgetPosition,
+    string? AgentName,
+    string? AgentAvatarUrl,
     DateTime CreatedAt);
 
 public record UpdateTenantDto(
@@ -17,7 +24,14 @@ public record UpdateTenantDto(
     string? SmtpHost,
     int?    SmtpPort,
     string? SmtpUser,
-    string? SmtpPassword);
+    string? SmtpPassword,
+    string? PrimaryColor,
+    string? SecondaryColor,
+    string? LogoUrl,
+    string? WelcomeMessage,
+    string? WidgetPosition,
+    string? AgentName,
+    string? AgentAvatarUrl);
 
 public record CreateTenantDto(
     string  Name,

@@ -24,5 +24,12 @@ public class TenantService : ITenantService
             dto.SmtpHost,
             dto.SmtpPort,
             dto.SmtpUser,
-            dto.SmtpPassword);
+            dto.SmtpPassword,
+            dto.PrimaryColor,
+            dto.SecondaryColor,
+            dto.LogoUrl,
+            dto.WelcomeMessage,
+            dto.WidgetPosition,
+            dto.AgentName,
+            dto.AgentAvatarUrl);
 }

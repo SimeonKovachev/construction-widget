@@ -39,6 +39,13 @@ export interface TenantInfo {
   apiKey: string;
   isActive: boolean;
   notificationEmail?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  logoUrl?: string;
+  welcomeMessage?: string;
+  widgetPosition?: string;
+  agentName?: string;
+  agentAvatarUrl?: string;
   createdAt: string;
 }
 

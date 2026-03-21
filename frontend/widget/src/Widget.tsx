@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import ChatButton from "./components/ChatButton";
 import ChatWindow from "./components/ChatWindow";
+import { buildTheme, DEFAULT_THEME } from "./theme";
+import type { WidgetTheme } from "./theme";
 
 interface WidgetConfig {
   tenantId: string;
@@ -16,6 +18,7 @@ interface TenantConfig {
 export default function Widget({ config }: { config: WidgetConfig }) {
   const [isOpen, setIsOpen] = useState(false);
   const [tenantConfig, setTenantConfig] = useState<TenantConfig | null>(null);
+  const [theme, setTheme] = useState<WidgetTheme>(DEFAULT_THEME);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,7 +29,14 @@ export default function Widget({ config }: { config: WidgetConfig }) {
         if (!res.ok) throw new Error("Widget configuration failed");
         return res.json();
       })
-      .then((data: TenantConfig) => setTenantConfig(data))
+      .then((data) => {
+        setTenantConfig({
+          tenantId: data.tenantId,
+          tenantName: data.tenantName,
+          greeting: data.greeting,
+        });
+        setTheme(buildTheme(data));
+      })
       .catch(() => setError("Widget unavailable"));
   }, [config.apiUrl, config.tenantId]);
 
@@ -35,7 +45,7 @@ export default function Widget({ config }: { config: WidgetConfig }) {
 
   return (
     <>
-      <ChatButton isOpen={isOpen} onClick={() => setIsOpen((o) => !o)} />
+      <ChatButton isOpen={isOpen} onClick={() => setIsOpen((o) => !o)} theme={theme} />
       {isOpen && (
         <ChatWindow
           tenantId={tenantConfig.tenantId}
@@ -43,6 +53,7 @@ export default function Widget({ config }: { config: WidgetConfig }) {
           tenantName={tenantConfig.tenantName}
           greeting={tenantConfig.greeting}
           onClose={() => setIsOpen(false)}
+          theme={theme}
         />
       )}
     </>

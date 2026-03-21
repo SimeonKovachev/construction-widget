@@ -1,11 +1,14 @@
 import { useState, KeyboardEvent, useRef, useEffect } from "react";
+import type { WidgetTheme } from "../theme";
+import { hexToRgba } from "../theme";
 
 interface InputBarProps {
   onSend: (text: string) => void;
   disabled: boolean;
+  theme: WidgetTheme;
 }
 
-export default function InputBar({ onSend, disabled }: InputBarProps) {
+export default function InputBar({ onSend, disabled, theme }: InputBarProps) {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -72,8 +75,8 @@ export default function InputBar({ onSend, disabled }: InputBarProps) {
           transition: "border-color 0.15s, box-shadow 0.15s",
         }}
         onFocus={(e) => {
-          e.currentTarget.style.borderColor = "#2563eb";
-          e.currentTarget.style.boxShadow = "0 0 0 2px rgba(37,99,235,0.15)";
+          e.currentTarget.style.borderColor = theme.primaryColor;
+          e.currentTarget.style.boxShadow = `0 0 0 2px ${hexToRgba(theme.primaryColor, 0.15)}`;
         }}
         onBlur={(e) => {
           e.currentTarget.style.borderColor = "#d1d5db";
@@ -87,7 +90,7 @@ export default function InputBar({ onSend, disabled }: InputBarProps) {
           width: "36px",
           height: "36px",
           borderRadius: "50%",
-          backgroundColor: "#2563eb",
+          backgroundColor: theme.primaryColor,
           border: "none",
           cursor: isDisabled ? "not-allowed" : "pointer",
           opacity: isDisabled ? 0.5 : 1,
@@ -99,12 +102,12 @@ export default function InputBar({ onSend, disabled }: InputBarProps) {
         }}
         onMouseEnter={(e) => {
           if (isDisabled) return;
-          e.currentTarget.style.backgroundColor = "#1d4ed8";
+          e.currentTarget.style.backgroundColor = theme.secondaryColor;
           e.currentTarget.style.transform = "scale(1.1)";
-          e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.4)";
+          e.currentTarget.style.boxShadow = `0 4px 12px ${hexToRgba(theme.primaryColor, 0.4)}`;
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = "#2563eb";
+          e.currentTarget.style.backgroundColor = theme.primaryColor;
           e.currentTarget.style.transform = "scale(1)";
           e.currentTarget.style.boxShadow = "none";
         }}

@@ -27,9 +27,15 @@ public class WidgetController : ControllerBase
         var tenant = _tenantContext.Tenant!;
         return Ok(new
         {
-            tenantId = tenant.Id,
-            tenantName = tenant.Name,
-            greeting = $"Hi! I'm the sales assistant for {tenant.Name}. How can I help you today?"
+            tenantId       = tenant.Id,
+            tenantName     = tenant.Name,
+            greeting       = tenant.WelcomeMessage ?? $"Hi! I'm the sales assistant for {tenant.Name}. How can I help you today?",
+            primaryColor   = tenant.PrimaryColor,
+            secondaryColor = tenant.SecondaryColor,
+            logoUrl        = tenant.LogoUrl,
+            position       = tenant.WidgetPosition ?? "bottom-right",
+            agentName      = tenant.AgentName ?? "Sales Assistant",
+            agentAvatarUrl = tenant.AgentAvatarUrl,
         });
     }
 }

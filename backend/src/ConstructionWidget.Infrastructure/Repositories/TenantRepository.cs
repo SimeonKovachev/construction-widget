@@ -34,7 +34,9 @@ public class TenantRepository : ITenantRepository
     }
 
     public async Task UpdateSettingsAsync(
-        Guid id, string? notificationEmail, string? smtpHost, int? smtpPort, string? smtpUser, string? smtpPassword)
+        Guid id, string? notificationEmail, string? smtpHost, int? smtpPort, string? smtpUser, string? smtpPassword,
+        string? primaryColor = null, string? secondaryColor = null, string? logoUrl = null,
+        string? welcomeMessage = null, string? widgetPosition = null, string? agentName = null, string? agentAvatarUrl = null)
     {
         var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == id);
         if (tenant is null) return;
@@ -44,6 +46,13 @@ public class TenantRepository : ITenantRepository
         if (smtpPort.HasValue)             tenant.SmtpPort          = smtpPort;
         if (smtpUser          is not null) tenant.SmtpUser          = smtpUser;
         if (smtpPassword      is not null) tenant.SmtpPassword      = smtpPassword;
+        if (primaryColor      is not null) tenant.PrimaryColor      = primaryColor;
+        if (secondaryColor    is not null) tenant.SecondaryColor    = secondaryColor;
+        if (logoUrl           is not null) tenant.LogoUrl           = logoUrl;
+        if (welcomeMessage    is not null) tenant.WelcomeMessage    = welcomeMessage;
+        if (widgetPosition    is not null) tenant.WidgetPosition    = widgetPosition;
+        if (agentName         is not null) tenant.AgentName         = agentName;
+        if (agentAvatarUrl    is not null) tenant.AgentAvatarUrl    = agentAvatarUrl;
 
         await _db.SaveChangesAsync();
     }

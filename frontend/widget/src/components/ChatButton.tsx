@@ -1,36 +1,44 @@
+import type { WidgetTheme } from "../theme";
+import { hexToRgba } from "../theme";
+
 interface ChatButtonProps {
   isOpen: boolean;
   onClick: () => void;
+  theme: WidgetTheme;
 }
 
-export default function ChatButton({ isOpen, onClick }: ChatButtonProps) {
+export default function ChatButton({ isOpen, onClick, theme }: ChatButtonProps) {
+  const shadowColor = hexToRgba(theme.primaryColor, 0.4);
+  const shadowColorHover = hexToRgba(theme.primaryColor, 0.55);
+  const positionSide = theme.position === "bottom-left" ? "left" : "right";
+
   return (
     <button
       onClick={onClick}
       style={{
         position: "fixed",
         bottom: "20px",
-        right: "20px",
+        [positionSide]: "20px",
         width: "60px",
         height: "60px",
         borderRadius: "50%",
-        background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+        background: `linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.secondaryColor} 100%)`,
         border: "none",
         cursor: "pointer",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        boxShadow: "0 4px 20px rgba(37, 99, 235, 0.4)",
+        boxShadow: `0 4px 20px ${shadowColor}`,
         zIndex: 10000,
         transition: "transform 0.2s ease, box-shadow 0.2s ease",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "scale(1.1)";
-        e.currentTarget.style.boxShadow = "0 6px 28px rgba(37, 99, 235, 0.55)";
+        e.currentTarget.style.boxShadow = `0 6px 28px ${shadowColorHover}`;
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "scale(1)";
-        e.currentTarget.style.boxShadow = "0 4px 20px rgba(37, 99, 235, 0.4)";
+        e.currentTarget.style.boxShadow = `0 4px 20px ${shadowColor}`;
       }}
       onMouseDown={(e) => {
         e.currentTarget.style.transform = "scale(0.95)";

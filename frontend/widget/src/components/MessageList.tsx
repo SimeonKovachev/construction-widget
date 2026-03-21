@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { ChatMessage } from "../hooks/useChat";
+import type { WidgetTheme } from "../theme";
 
-export default function MessageList({ messages }: { messages: ChatMessage[] }) {
+export default function MessageList({ messages, theme }: { messages: ChatMessage[]; theme: WidgetTheme }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,7 +24,7 @@ export default function MessageList({ messages }: { messages: ChatMessage[] }) {
               maxWidth: "80%",
               padding: "10px 14px",
               borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-              backgroundColor: msg.role === "user" ? "#2563eb" : "#f3f4f6",
+              backgroundColor: msg.role === "user" ? theme.primaryColor : "#f3f4f6",
               color: msg.role === "user" ? "#fff" : "#111827",
               fontSize: "14px",
               lineHeight: "1.5",

@@ -20,6 +20,15 @@ public class Tenant
     public string? SmtpUser { get; set; }
     public string? SmtpPassword { get; set; }
 
+    // Branding
+    public string? PrimaryColor { get; set; }
+    public string? SecondaryColor { get; set; }
+    public string? LogoUrl { get; set; }
+    public string? WelcomeMessage { get; set; }
+    public string? WidgetPosition { get; set; }
+    public string? AgentName { get; set; }
+    public string? AgentAvatarUrl { get; set; }
+
     // Navigation
     public ICollection<Lead> Leads { get; set; } = [];
     public ICollection<Conversation> Conversations { get; set; } = [];
