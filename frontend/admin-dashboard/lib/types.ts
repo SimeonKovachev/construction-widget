@@ -68,6 +68,38 @@ export interface LoginResponse {
   tenantName: string;
 }
 
+// ── Conversations ────────────────────────────────────────────────────────────
+
+export interface ConversationSummary {
+  id: string;
+  sessionId: string;
+  messageCount: number;
+  firstUserMessage: string | null;
+  isFlagged: boolean;
+  hasLead: boolean;
+  leadStatus: string | null;
+  customerName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConversationDetail {
+  id: string;
+  sessionId: string;
+  messages: ConversationMessage[];
+  isFlagged: boolean;
+  hasLead: boolean;
+  leadStatus: string | null;
+  customerName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConversationMessage {
+  role: string;
+  content: string;
+}
+
 // ── Analytics ────────────────────────────────────────────────────────────────
 
 export type AnalyticsRange = "7d" | "30d" | "90d";

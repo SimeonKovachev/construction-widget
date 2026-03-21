@@ -20,6 +20,7 @@ public class AdminController : ControllerBase
     private readonly ITenantContext            _tenantContext;
     private readonly ITenantDocumentRepository _documentRepo;
     private readonly IDocumentTextExtractor    _textExtractor;
+    private readonly IConversationRepository   _conversationRepo;
 
     public AdminController(
         ITenantService            tenantService,
@@ -27,7 +28,8 @@ public class AdminController : ControllerBase
         IAnalyticsService         analyticsService,
         ITenantContext            tenantContext,
         ITenantDocumentRepository documentRepo,
-        IDocumentTextExtractor    textExtractor)
+        IDocumentTextExtractor    textExtractor,
+        IConversationRepository   conversationRepo)
     {
         _tenantService    = tenantService;
         _priceListService = priceListService;
@@ -35,6 +37,7 @@ public class AdminController : ControllerBase
         _tenantContext    = tenantContext;
         _documentRepo     = documentRepo;
         _textExtractor    = textExtractor;
+        _conversationRepo = conversationRepo;
     }
 
     // ── Analytics ─────────────────────────────────────────────────────────────
@@ -138,6 +141,34 @@ public class AdminController : ControllerBase
         return deleted ? NoContent() : NotFound(new { error = "Category not found." });
     }
 
+    // ── Conversations ─────────────────────────────────────────────────────
+
+    [HttpGet("conversations")]
+    public async Task<ActionResult<List<ConversationSummaryDto>>> GetConversations(
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] bool? flagged,
+        [FromQuery] string? search)
+    {
+        var list = await _conversationRepo.GetAllAsync(
+            _tenantContext.TenantId, from, to, flagged, search);
+        return Ok(list);
+    }
+
+    [HttpGet("conversations/{id:guid}")]
+    public async Task<ActionResult<ConversationDetailDto>> GetConversation(Guid id)
+    {
+        var detail = await _conversationRepo.GetByIdAsync(id, _tenantContext.TenantId);
+        return detail is null ? NotFound() : Ok(detail);
+    }
+
+    [HttpPatch("conversations/{id:guid}/flag")]
+    public async Task<IActionResult> ToggleFlag(Guid id, [FromBody] SetFlagDto req)
+    {
+        var ok = await _conversationRepo.SetFlagAsync(id, _tenantContext.TenantId, req.IsFlagged);
+        return ok ? Ok(new { message = "Flag updated." }) : NotFound();
+    }
+
     // ── Knowledge Base ──────────────────────────────────────────────────────
 
     [HttpGet("knowledge-base")]
@@ -215,3 +246,4 @@ public class AdminController : ControllerBase
 
 public record CreateDocumentDto(string Title, string Content, string? Category);
 public record UpdateDocumentDto(string? Title, string? Content, string? Category, bool? IsActive);
+public record SetFlagDto(bool IsFlagged);

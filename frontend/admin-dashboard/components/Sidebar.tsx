@@ -2,13 +2,14 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, Users, FileText, Settings, LogOut, MessageSquare, BookOpen } from "lucide-react";
+import { BarChart3, Users, FileText, Settings, LogOut, MessageSquare, BookOpen, MessagesSquare } from "lucide-react";
 import { logout, getTenantInfo } from "@/lib/auth";
 
 const navItems = [
   { href: "/",               label: "Dashboard",      icon: BarChart3 },
-  { href: "/leads",          label: "Leads",          icon: Users     },
-  { href: "/pricelist",      label: "Price List",     icon: FileText  },
+  { href: "/leads",          label: "Leads",          icon: Users          },
+  { href: "/conversations",  label: "Conversations",  icon: MessagesSquare },
+  { href: "/pricelist",      label: "Price List",     icon: FileText       },
   { href: "/knowledge-base", label: "Knowledge Base", icon: BookOpen  },
   { href: "/settings",       label: "Settings",       icon: Settings  },
 ];
