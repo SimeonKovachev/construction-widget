@@ -4,6 +4,9 @@ import { useDropzone } from "react-dropzone";
 import axios from "axios";
 import api from "@/lib/api";
 import type { TenantDocument } from "@/lib/types";
+import Button from "@/components/ui/Button";
+import IconButton from "@/components/ui/IconButton";
+import { Input, Textarea } from "@/components/ui/Input";
 import { Plus, Pencil, Trash2, X, BookOpen, FileText, Upload, Loader2 } from "lucide-react";
 
 const CATEGORIES = ["general", "warranty", "delivery", "installation", "faq", "pricing", "other"];
@@ -139,13 +142,9 @@ export default function KnowledgeBasePage() {
             Add company info, policies, and FAQs. The AI chatbot uses these documents to answer customer questions.
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
-          style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)" }}
-        >
+        <Button onClick={openCreate}>
           <Plus className="w-4 h-4" /> Add Document
-        </button>
+        </Button>
       </div>
 
       {/* Usage bar */}
@@ -178,9 +177,9 @@ export default function KnowledgeBasePage() {
           <button
             key={cat}
             onClick={() => setFilterCat(cat)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all cursor-pointer active:scale-95 ${
               filterCat === cat
-                ? "bg-blue-600 text-white"
+                ? "bg-blue-600 text-white shadow-sm"
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
@@ -205,7 +204,7 @@ export default function KnowledgeBasePage() {
           {filtered.map((doc) => (
             <div
               key={doc.id}
-              className={`bg-white rounded-xl border p-5 transition-all ${
+              className={`bg-white rounded-xl border p-5 transition-all hover:shadow-sm ${
                 doc.isActive ? "border-slate-200" : "border-slate-100 opacity-60"
               }`}
             >
@@ -229,28 +228,24 @@ export default function KnowledgeBasePage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => toggleActive(doc)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    className={
                       doc.isActive
-                        ? "bg-yellow-50 text-yellow-700 hover:bg-yellow-100"
-                        : "bg-green-50 text-green-700 hover:bg-green-100"
-                    }`}
+                        ? "!text-yellow-700 !bg-yellow-50 hover:!bg-yellow-100"
+                        : "!text-green-700 !bg-green-50 hover:!bg-green-100"
+                    }
                   >
                     {doc.isActive ? "Deactivate" : "Activate"}
-                  </button>
-                  <button
-                    onClick={() => openEdit(doc)}
-                    className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
-                  >
+                  </Button>
+                  <IconButton onClick={() => openEdit(doc)}>
                     <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(doc.id)}
-                    className="p-2 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all"
-                  >
+                  </IconButton>
+                  <IconButton variant="danger-ghost" onClick={() => handleDelete(doc.id)}>
                     <Trash2 className="w-4 h-4" />
-                  </button>
+                  </IconButton>
                 </div>
               </div>
             </div>
@@ -266,22 +261,18 @@ export default function KnowledgeBasePage() {
               <h2 className="text-lg font-bold text-slate-900">
                 {editingDoc ? "Edit Document" : "Add Document"}
               </h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-1.5 rounded-lg hover:bg-slate-100 transition-all"
-              >
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
+              <IconButton onClick={() => setShowModal(false)}>
+                <X className="w-5 h-5" />
+              </IconButton>
             </div>
             <div className="px-6 py-5 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
-                <input
+                <Input
                   type="text"
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                   placeholder="e.g. Warranty Policy, Delivery Info, FAQ"
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -289,7 +280,7 @@ export default function KnowledgeBasePage() {
                 <select
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 capitalize"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all capitalize cursor-pointer"
                 >
                   {CATEGORIES.map((cat) => (
                     <option key={cat} value={cat} className="capitalize">
@@ -346,30 +337,25 @@ export default function KnowledgeBasePage() {
                     ({form.content.length.toLocaleString()} characters)
                   </span>
                 </label>
-                <textarea
+                <Textarea
                   value={form.content}
                   onChange={(e) => setForm({ ...form, content: e.target.value })}
                   placeholder="Write, paste, or upload a file above. The AI chatbot will use this to answer customer questions accurately."
                   rows={12}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
                 />
               </div>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition-all"
-              >
+              <Button variant="ghost" onClick={() => setShowModal(false)}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleSave}
-                disabled={saving || !form.title.trim() || !form.content.trim()}
-                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 hover:brightness-110 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
-                style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)" }}
+                disabled={!form.title.trim() || !form.content.trim()}
+                loading={saving}
               >
-                {saving ? "Saving..." : editingDoc ? "Save Changes" : "Add Document"}
-              </button>
+                {editingDoc ? "Save Changes" : "Add Document"}
+              </Button>
             </div>
           </div>
         </div>

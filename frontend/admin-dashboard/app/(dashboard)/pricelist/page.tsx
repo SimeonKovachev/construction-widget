@@ -4,6 +4,7 @@ import PriceListUpload from "@/components/PriceListUpload";
 import { PricingConfig } from "@/lib/types";
 import { pricingService } from "@/lib/services/pricingService";
 import { Pencil, Trash2, Plus, Check, X } from "lucide-react";
+import Button from "@/components/ui/Button";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface MaterialRow {
@@ -112,16 +113,10 @@ function GlobalsEditor({ markup, labor, onSave }: GlobalsEditorProps) {
         </div>
       </div>
 
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-60 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
-      >
-        {saving
-          ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          : <Check className="w-3 h-3" />}
+      <Button variant="secondary" size="sm" onClick={handleSave} loading={saving}>
+        {!saving && <Check className="w-3 h-3" />}
         Save Globals
-      </button>
+      </Button>
     </div>
   );
 }
@@ -440,16 +435,10 @@ export default function PriceListPage() {
                 placeholder="New category name (e.g. pergolas)"
                 className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-slate-300"
               />
-              <button
-                onClick={addCategory}
-                disabled={addingCat || !newCat.trim()}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
-              >
-                {addingCat
-                  ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  : <Plus className="w-4 h-4" />}
+              <Button onClick={addCategory} disabled={!newCat.trim()} loading={addingCat}>
+                {!addingCat && <Plus className="w-4 h-4" />}
                 Add Category
-              </button>
+              </Button>
             </div>
           )}
         </div>

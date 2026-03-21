@@ -3,8 +3,10 @@ import { useEffect, useState } from "react";
 import { Copy, Check, Building2, Mail, Code2 } from "lucide-react";
 import { TenantInfo } from "@/lib/types";
 import api from "@/lib/api";
+import Button from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
-const inputCls = "w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white";
+// Input styling is now handled by the shared <Input> component
 
 export default function SettingsPage() {
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
@@ -144,7 +146,7 @@ export default function SettingsPage() {
               value={form.notificationEmail}
               onChange={(e) => setForm((f) => ({ ...f, notificationEmail: e.target.value }))}
               placeholder="owner@company.com"
-              className={inputCls}
+              className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
             />
             <p className="text-xs text-slate-400 mt-1.5">
               You&apos;ll receive an email whenever a new lead is captured by the widget.
@@ -167,7 +169,7 @@ export default function SettingsPage() {
                     value={form.smtpHost}
                     onChange={(e) => setForm((f) => ({ ...f, smtpHost: e.target.value }))}
                     placeholder="smtp.gmail.com"
-                    className={inputCls}
+                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
                   />
                 </div>
                 <div>
@@ -177,7 +179,7 @@ export default function SettingsPage() {
                     value={form.smtpPort}
                     onChange={(e) => setForm((f) => ({ ...f, smtpPort: e.target.value }))}
                     placeholder="587"
-                    className={inputCls}
+                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
                   />
                 </div>
               </div>
@@ -187,7 +189,7 @@ export default function SettingsPage() {
                   value={form.smtpUser}
                   onChange={(e) => setForm((f) => ({ ...f, smtpUser: e.target.value }))}
                   placeholder="you@gmail.com"
-                  className={inputCls}
+                  className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
                 />
               </div>
               <div>
@@ -197,22 +199,18 @@ export default function SettingsPage() {
                   value={form.smtpPassword}
                   onChange={(e) => setForm((f) => ({ ...f, smtpPassword: e.target.value }))}
                   placeholder="App password or SMTP password"
-                  className={inputCls}
+                  className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
                 />
               </div>
             </div>
           </details>
 
           <div className="pt-2">
-            <button
-              type="submit"
-              className="flex items-center gap-2 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-all hover:brightness-110 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
-              style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)", boxShadow: "0 2px 8px rgba(37,99,235,0.30)" }}
-            >
+            <Button type="submit">
               {saved ? (
                 <><Check className="w-4 h-4" /> Saved!</>
               ) : "Save Settings"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
