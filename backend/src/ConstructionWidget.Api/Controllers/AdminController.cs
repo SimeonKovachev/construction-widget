@@ -17,17 +17,20 @@ public class AdminController : ControllerBase
     private readonly IPriceListService         _priceListService;
     private readonly ITenantContext            _tenantContext;
     private readonly ITenantDocumentRepository _documentRepo;
+    private readonly IDocumentTextExtractor    _textExtractor;
 
     public AdminController(
         ITenantService            tenantService,
         IPriceListService         priceListService,
         ITenantContext            tenantContext,
-        ITenantDocumentRepository documentRepo)
+        ITenantDocumentRepository documentRepo,
+        IDocumentTextExtractor    textExtractor)
     {
         _tenantService    = tenantService;
         _priceListService = priceListService;
         _tenantContext    = tenantContext;
         _documentRepo     = documentRepo;
+        _textExtractor    = textExtractor;
     }
 
     // ── Tenant settings ────────────────────────────────────────────────────────
@@ -165,6 +168,35 @@ public class AdminController : ControllerBase
     {
         var deleted = await _documentRepo.DeleteAsync(id, _tenantContext.TenantId);
         return deleted ? NoContent() : NotFound();
+    }
+
+    [HttpPost("knowledge-base/extract")]
+    public async Task<IActionResult> ExtractDocumentText(IFormFile file)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "No file uploaded." });
+
+        var ext = Path.GetExtension(file.FileName)?.ToLowerInvariant();
+        if (ext is not ".pdf" and not ".docx")
+            return BadRequest(new { error = "Only PDF and DOCX files are accepted." });
+
+        if (file.Length > 10_485_760)
+            return BadRequest(new { error = "File too large. Max 10 MB." });
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            var text = await _textExtractor.ExtractTextAsync(stream, file.FileName);
+
+            if (string.IsNullOrWhiteSpace(text))
+                return BadRequest(new { error = "Could not extract any text from this file." });
+
+            return Ok(new { text, fileName = file.FileName, characterCount = text.Length });
+        }
+        catch (Exception)
+        {
+            return BadRequest(new { error = "Failed to parse file. Ensure it is a valid PDF or DOCX." });
+        }
     }
 }
 

@@ -64,6 +64,7 @@ builder.Services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<TenantCon
 builder.Services.AddScoped<EstimateService>();
 builder.Services.AddScoped<IEstimateService>(sp => sp.GetRequiredService<EstimateService>());
 builder.Services.AddScoped<IOpenAiChatService, OpenAiChatService>();
+builder.Services.AddScoped<IDocumentTextExtractor, DocumentTextExtractor>();
 builder.Services.AddScoped<ILeadNotificationService, LeadNotificationService>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<AuthService>();

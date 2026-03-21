@@ -1,8 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useDropzone } from "react-dropzone";
+import axios from "axios";
 import api from "@/lib/api";
 import type { TenantDocument } from "@/lib/types";
-import { Plus, Pencil, Trash2, X, BookOpen, FileText } from "lucide-react";
+import { Plus, Pencil, Trash2, X, BookOpen, FileText, Upload, Loader2 } from "lucide-react";
 
 const CATEGORIES = ["general", "warranty", "delivery", "installation", "faq", "pricing", "other"];
 
@@ -16,6 +18,10 @@ export default function KnowledgeBasePage() {
   const [editingDoc, setEditingDoc] = useState<TenantDocument | null>(null);
   const [form, setForm] = useState({ title: "", content: "", category: "general" });
   const [saving, setSaving] = useState(false);
+
+  // File upload state
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState("");
 
   useEffect(() => {
     fetchDocs();
@@ -35,12 +41,14 @@ export default function KnowledgeBasePage() {
   function openCreate() {
     setEditingDoc(null);
     setForm({ title: "", content: "", category: "general" });
+    setExtractError("");
     setShowModal(true);
   }
 
   function openEdit(doc: TenantDocument) {
     setEditingDoc(doc);
     setForm({ title: doc.title, content: doc.content, category: doc.category });
+    setExtractError("");
     setShowModal(true);
   }
 
@@ -80,6 +88,42 @@ export default function KnowledgeBasePage() {
       console.error("Failed to toggle document", e);
     }
   }
+
+  const onDrop = useCallback(async (accepted: File[]) => {
+    const file = accepted[0];
+    if (!file) return;
+    setExtracting(true);
+    setExtractError("");
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const { data } = await api.post("/api/admin/knowledge-base/extract", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setForm((prev) => ({
+        ...prev,
+        content: data.text,
+        title: prev.title || file.name.replace(/\.(pdf|docx)$/i, ""),
+      }));
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err)
+        ? err.response?.data?.error ?? "Upload failed"
+        : "Upload failed";
+      setExtractError(msg);
+    } finally {
+      setExtracting(false);
+    }
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      "application/pdf": [".pdf"],
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+    },
+    maxFiles: 1,
+    maxSize: 10 * 1024 * 1024,
+  });
 
   const filtered = filterCat === "all" ? docs : docs.filter((d) => d.category === filterCat);
   const totalChars = docs.filter((d) => d.isActive).reduce((sum, d) => sum + d.content.length, 0);
@@ -254,6 +298,47 @@ export default function KnowledgeBasePage() {
                   ))}
                 </select>
               </div>
+
+              {/* File upload dropzone */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Upload Document (optional)
+                </label>
+                <div
+                  {...getRootProps()}
+                  className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
+                    isDragActive
+                      ? "border-blue-400 bg-blue-50"
+                      : extractError
+                        ? "border-red-300 bg-red-50"
+                        : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <input {...getInputProps()} />
+                  {extracting ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                      <p className="text-sm text-blue-600 font-medium">Extracting text...</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="w-6 h-6 text-slate-400" />
+                      <p className="text-sm text-slate-600">
+                        {isDragActive
+                          ? "Drop your file here..."
+                          : "Drop a PDF or DOCX file here, or click to browse"}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        Extracted text will appear in the content field below for review
+                      </p>
+                    </div>
+                  )}
+                  {extractError && (
+                    <p className="text-sm text-red-500 mt-2">{extractError}</p>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Content
@@ -264,7 +349,7 @@ export default function KnowledgeBasePage() {
                 <textarea
                   value={form.content}
                   onChange={(e) => setForm({ ...form, content: e.target.value })}
-                  placeholder="Write or paste the information here. The AI chatbot will use this to answer customer questions accurately."
+                  placeholder="Write, paste, or upload a file above. The AI chatbot will use this to answer customer questions accurately."
                   rows={12}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
                 />
