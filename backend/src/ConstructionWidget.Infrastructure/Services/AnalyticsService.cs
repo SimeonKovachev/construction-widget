@@ -15,31 +15,33 @@ public class AnalyticsService : IAnalyticsService
     {
         var cutoff = DateTime.UtcNow.AddDays(-days);
 
-        // Run independent queries in parallel
+        // Base queryables (global query filter handles tenant isolation;
+        // explicit TenantId kept for clarity / defense-in-depth)
         var leadsQuery         = _db.Leads.Where(l => l.TenantId == tenantId && l.CreatedAt >= cutoff);
         var conversationsQuery = _db.Conversations.Where(c => c.TenantId == tenantId && c.CreatedAt >= cutoff);
 
-        var leadsOverTimeTask = leadsQuery
+        // EF Core DbContext is NOT thread-safe — queries must run sequentially
+        var leadsOverTime = await leadsQuery
             .GroupBy(l => l.CreatedAt.Date)
             .Select(g => new DateCountDto(g.Key.ToString("yyyy-MM-dd"), g.Count()))
             .OrderBy(x => x.Date)
             .ToListAsync();
 
-        var revenueOverTimeTask = leadsQuery
+        var revenueOverTime = await leadsQuery
             .GroupBy(l => l.CreatedAt.Date)
             .Select(g => new DateRevenueDto(g.Key.ToString("yyyy-MM-dd"), g.Sum(l => l.QuotedPrice)))
             .OrderBy(x => x.Date)
             .ToListAsync();
 
-        var totalConversationsTask = conversationsQuery.CountAsync();
-        var totalLeadsTask         = leadsQuery.CountAsync();
+        var totalConversations = await conversationsQuery.CountAsync();
+        var totalLeads         = await leadsQuery.CountAsync();
 
-        var peakHoursTask = conversationsQuery
+        var peakHoursRaw = await conversationsQuery
             .GroupBy(c => c.CreatedAt.Hour)
             .Select(g => new HourCountDto(g.Key, g.Count()))
             .ToListAsync();
 
-        var topQuestionsTask = leadsQuery
+        var topQuestions = await leadsQuery
             .Where(l => l.Requirements != null && l.Requirements != "")
             .GroupBy(l => l.Requirements)
             .Select(g => new QuestionCountDto(g.Key, g.Count()))
@@ -47,37 +49,30 @@ public class AnalyticsService : IAnalyticsService
             .Take(10)
             .ToListAsync();
 
-        var leadsByStatusTask = leadsQuery
+        var leadsByStatus = await leadsQuery
             .GroupBy(l => l.Status)
             .Select(g => new StatusCountDto(g.Key, g.Count()))
             .ToListAsync();
 
-        await Task.WhenAll(
-            leadsOverTimeTask, revenueOverTimeTask,
-            totalConversationsTask, totalLeadsTask,
-            peakHoursTask, topQuestionsTask, leadsByStatusTask);
-
-        var totalConversations = totalConversationsTask.Result;
-        var totalLeads         = totalLeadsTask.Result;
-        var conversionRate     = totalConversations > 0
+        var conversionRate = totalConversations > 0
             ? Math.Round((double)totalLeads / totalConversations * 100, 1)
             : 0;
 
         // Fill missing hours (0-23) with zero counts
-        var peakHoursDict = peakHoursTask.Result.ToDictionary(h => h.Hour, h => h.Count);
+        var peakHoursDict = peakHoursRaw.ToDictionary(h => h.Hour, h => h.Count);
         var peakHours = Enumerable.Range(0, 24)
             .Select(h => new HourCountDto(h, peakHoursDict.GetValueOrDefault(h, 0)))
             .ToList();
 
         return new AnalyticsDto(
-            LeadsOverTime:      leadsOverTimeTask.Result,
-            RevenueOverTime:    revenueOverTimeTask.Result,
+            LeadsOverTime:      leadsOverTime,
+            RevenueOverTime:    revenueOverTime,
             TotalConversations: totalConversations,
             TotalLeads:         totalLeads,
             ConversionRate:     conversionRate,
             PeakHours:          peakHours,
-            TopQuestions:       topQuestionsTask.Result,
-            LeadsByStatus:      leadsByStatusTask.Result
+            TopQuestions:       topQuestions,
+            LeadsByStatus:      leadsByStatus
         );
     }
 }
