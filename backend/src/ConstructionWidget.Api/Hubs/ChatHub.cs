@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using ConstructionWidget.Core.Entities;
 using ConstructionWidget.Core.Interfaces;
 using ConstructionWidget.Infrastructure.Services;
@@ -38,6 +39,7 @@ public class ChatHub : Hub
     public async IAsyncEnumerable<string> SendMessage(
         string sessionId,
         string message,
+        string? imageUrlsJson,
         [EnumeratorCancellation] CancellationToken ct)
     {
         // ── Resolve tenant — DB only on first message per connection ──────────
@@ -64,12 +66,20 @@ public class ChatHub : Hub
         // Set on the scoped TenantContext for this DI scope
         _tenantContext.SetTenant(resolvedTenant);
 
-        if (string.IsNullOrWhiteSpace(message))
+        if (string.IsNullOrWhiteSpace(message) && string.IsNullOrWhiteSpace(imageUrlsJson))
             yield break;
+
+        // Parse image URLs if provided
+        List<string>? imageUrls = null;
+        if (!string.IsNullOrWhiteSpace(imageUrlsJson))
+        {
+            try { imageUrls = JsonSerializer.Deserialize<List<string>>(imageUrlsJson); }
+            catch { /* invalid JSON — ignore */ }
+        }
 
         // ── Stream AI response ────────────────────────────────────────────────
         await foreach (var chunk in _chatService.StreamResponseAsync(
-                           resolvedTenant.Id, sessionId, message, ct))
+                           resolvedTenant.Id, sessionId, message, imageUrls, ct))
         {
             yield return chunk;
         }

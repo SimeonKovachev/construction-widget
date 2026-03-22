@@ -93,23 +93,36 @@ export default function TranscriptDrawer({ conversation, onClose, onToggleFlag }
                     : "bg-slate-100 text-slate-800 rounded-bl-md"
                 }`}
               >
-                {msg.type === "image" && msg.imageUrl ? (
-                  <a
-                    href={API_URL + msg.imageUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block"
-                  >
-                    <img
-                      src={API_URL + msg.imageUrl}
-                      alt="Uploaded photo"
-                      className="max-w-[200px] rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
-                    />
+                {/* Image(s) — supports both single imageUrl and imageUrls array */}
+                {msg.type === "image" && (msg.imageUrl || msg.imageUrls) ? (
+                  <div>
+                    <div className="flex flex-wrap gap-2">
+                      {(msg.imageUrls ?? (msg.imageUrl ? [msg.imageUrl] : [])).map((url, j) => (
+                        <a
+                          key={j}
+                          href={API_URL + url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block"
+                        >
+                          <img
+                            src={API_URL + url}
+                            alt={`Photo ${j + 1}`}
+                            className="max-w-[200px] rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                    {msg.content && msg.content !== "📷 Photo uploaded" && (
+                      <p className="whitespace-pre-wrap break-words mt-2">{msg.content}</p>
+                    )}
                     <span className="flex items-center gap-1 mt-1 text-xs opacity-70">
                       <ImageIcon className="w-3 h-3" />
-                      Photo
+                      {(msg.imageUrls ?? [msg.imageUrl]).filter(Boolean).length > 1
+                        ? `${(msg.imageUrls ?? [msg.imageUrl]).filter(Boolean).length} Photos`
+                        : "Photo"}
                     </span>
-                  </a>
+                  </div>
                 ) : (
                   <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                 )}

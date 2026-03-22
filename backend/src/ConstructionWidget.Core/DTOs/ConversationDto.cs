@@ -29,5 +29,6 @@ public record ConversationMsgDto(
     string Role,
     string Content,
     string? Type = "text",
-    string? ImageUrl = null
+    string? ImageUrl = null,
+    List<string>? ImageUrls = null
 );

@@ -7,43 +7,126 @@ export interface ChatMessage {
   content: string;
   streaming?: boolean;
   type?: "text" | "image";
-  imageUrl?: string;
+  imageUrls?: string[];   // multiple images per message
+}
+
+export interface PendingImage {
+  id: string;
+  file: File;
+  previewUrl: string;     // object URL for thumbnail preview
 }
 
 export function useChat(apiUrl: string, tenantId: string) {
   const sessionId = useRef(crypto.randomUUID());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const { getConnection } = useSignalR(apiUrl, tenantId);
 
+  // ── Add images to the pending queue (preview before send) ──────────────
+  const attachImages = useCallback((files: File[]) => {
+    const newImages: PendingImage[] = files
+      .filter((f) => f.size <= 5 * 1024 * 1024 && f.type.startsWith("image/"))
+      .map((file) => ({
+        id: crypto.randomUUID(),
+        file,
+        previewUrl: URL.createObjectURL(file),
+      }));
+
+    setPendingImages((prev) => [...prev, ...newImages]);
+  }, []);
+
+  const removeImage = useCallback((id: string) => {
+    setPendingImages((prev) => {
+      const img = prev.find((p) => p.id === id);
+      if (img) URL.revokeObjectURL(img.previewUrl);
+      return prev.filter((p) => p.id !== id);
+    });
+  }, []);
+
+  const clearImages = useCallback(() => {
+    setPendingImages((prev) => {
+      prev.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+      return [];
+    });
+  }, []);
+
+  // ── Upload images to server, return URLs ───────────────────────────────
+  const uploadImages = useCallback(async (images: PendingImage[]): Promise<string[]> => {
+    const urls: string[] = [];
+
+    for (const img of images) {
+      const formData = new FormData();
+      formData.append("file", img.file);
+      formData.append("sessionId", sessionId.current);
+
+      const res = await fetch(`${apiUrl}/api/widget/photos`, {
+        method: "POST",
+        headers: { "X-Tenant-ID": tenantId },
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        urls.push(data.imageUrl);
+      }
+    }
+
+    return urls;
+  }, [apiUrl, tenantId]);
+
+  // ── Send message (text + optional attached images) ─────────────────────
   const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim() || isStreaming) return;
+    const trimmed = text.trim();
+    const hasImages = pendingImages.length > 0;
 
-    const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: text,
-    };
+    if (!trimmed && !hasImages) return;
+    if (isStreaming) return;
 
-    const assistantMsgId = crypto.randomUUID();
-    const assistantMsg: ChatMessage = {
-      id: assistantMsgId,
-      role: "assistant",
-      content: "",
-      streaming: true,
-    };
-
-    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    // Capture current pending images and clear immediately
+    const imagesToSend = [...pendingImages];
+    clearImages();
     setIsStreaming(true);
 
     try {
+      // Upload images first if any
+      let imageUrls: string[] = [];
+      if (imagesToSend.length > 0) {
+        imageUrls = await uploadImages(imagesToSend);
+      }
+
+      // Build user message for display
+      const userMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: trimmed || (imageUrls.length > 0 ? "" : ""),
+        type: imageUrls.length > 0 ? "image" : "text",
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+      };
+
+      const assistantMsgId = crypto.randomUUID();
+      const assistantMsg: ChatMessage = {
+        id: assistantMsgId,
+        role: "assistant",
+        content: "",
+        streaming: true,
+      };
+
+      setMessages((prev) => [...prev, userMsg, assistantMsg]);
+
+      // Send via SignalR with image URLs
       const conn = await getConnection();
-      const stream = conn.stream<string>("SendMessage", sessionId.current, text);
+      const imageUrlsJson = imageUrls.length > 0 ? JSON.stringify(imageUrls) : null;
+      const stream = conn.stream<string>(
+        "SendMessage",
+        sessionId.current,
+        trimmed || "Please analyze the photo(s) I sent.",
+        imageUrlsJson
+      );
 
       await new Promise<void>((resolve, reject) => {
         stream.subscribe({
           next: (chunk: string) => {
-            // Filter out tool indicator lines
             if (chunk.startsWith("\n\n[Tool:")) return;
             setMessages((prev) =>
               prev.map((m) =>
@@ -74,66 +157,11 @@ export function useChat(apiUrl: string, tenantId: string) {
         });
       });
     } catch {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantMsgId
-            ? { ...m, content: "Connection error. Please try again.", streaming: false }
-            : m
-        )
-      );
+      // Connection-level error
     } finally {
       setIsStreaming(false);
     }
-  }, [isStreaming, getConnection]);
+  }, [isStreaming, pendingImages, clearImages, uploadImages, getConnection]);
 
-  const sendPhoto = useCallback(async (file: File) => {
-    if (isStreaming) return;
-    setIsStreaming(true);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("sessionId", sessionId.current);
-
-      const res = await fetch(`${apiUrl}/api/widget/photos`, {
-        method: "POST",
-        headers: { "X-Tenant-ID": tenantId },
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Upload failed" }));
-        throw new Error(err.error || "Upload failed");
-      }
-
-      const data = await res.json();
-
-      const userMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "user",
-        content: "📷 Photo uploaded",
-        type: "image",
-        imageUrl: data.imageUrl,
-      };
-
-      const assistantMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: "Thanks! I've received your photo. Our team will review it along with your inquiry.",
-      };
-
-      setMessages((prev) => [...prev, userMsg, assistantMsg]);
-    } catch (err) {
-      const errorMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: err instanceof Error ? err.message : "Failed to upload photo. Please try again.",
-      };
-      setMessages((prev) => [...prev, errorMsg]);
-    } finally {
-      setIsStreaming(false);
-    }
-  }, [apiUrl, tenantId, isStreaming]);
-
-  return { messages, sendMessage, sendPhoto, isStreaming };
+  return { messages, sendMessage, isStreaming, pendingImages, attachImages, removeImage };
 }

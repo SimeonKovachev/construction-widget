@@ -64,6 +64,7 @@ builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
 builder.Services.AddScoped<EstimateService>();
 builder.Services.AddScoped<IEstimateService>(sp => sp.GetRequiredService<EstimateService>());
+builder.Services.AddSingleton(new WebRootPathAccessor(builder.Environment.WebRootPath));
 builder.Services.AddScoped<IOpenAiChatService, OpenAiChatService>();
 builder.Services.AddScoped<IDocumentTextExtractor, DocumentTextExtractor>();
 builder.Services.AddScoped<ILeadNotificationService, LeadNotificationService>();

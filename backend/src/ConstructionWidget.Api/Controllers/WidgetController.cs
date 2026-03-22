@@ -113,41 +113,10 @@ public class WidgetController : ControllerBase
 
         var imageUrl = $"/uploads/{tenantId}/{storedFileName}";
 
-        // ── Append image message to conversation history ─────────────────────
-        await AppendPhotoToConversationAsync(tenantId, sessionId, imageUrl);
+        // Photo is uploaded and stored. The conversation history is managed by
+        // OpenAiChatService when the user sends a message with attached images.
+        // No auto-response is appended — the AI will analyze the photo and respond.
 
         return Ok(new { imageUrl, photoId = photo.Id });
-    }
-
-    // ── Helpers ──────────────────────────────────────────────────────────────────
-
-    private async Task AppendPhotoToConversationAsync(Guid tenantId, string sessionId, string imageUrl)
-    {
-        var conversation = await _conversationRepo.GetBySessionAsync(tenantId, sessionId);
-
-        var userMsg = new { role = "user", content = "📷 Photo uploaded", type = "image", imageUrl };
-        var botMsg  = new { role = "assistant", content = "Thanks! I've received your photo. Our team will review it along with your inquiry.", type = "text", imageUrl = (string?)null };
-
-        List<object> messages;
-
-        if (conversation is null)
-        {
-            messages = new List<object> { userMsg, botMsg };
-            await _conversationRepo.CreateAsync(new Conversation
-            {
-                TenantId     = tenantId,
-                SessionId    = sessionId,
-                MessagesJson = JsonSerializer.Serialize(messages),
-                CreatedAt    = DateTime.UtcNow,
-                UpdatedAt    = DateTime.UtcNow,
-            });
-        }
-        else
-        {
-            messages = JsonSerializer.Deserialize<List<object>>(conversation.MessagesJson) ?? [];
-            messages.Add(userMsg);
-            messages.Add(botMsg);
-            await _conversationRepo.UpdateHistoryAsync(conversation.Id, JsonSerializer.Serialize(messages));
-        }
     }
 }

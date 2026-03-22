@@ -100,7 +100,8 @@ export interface ConversationMessage {
   role: string;
   content: string;
   type?: "text" | "image";
-  imageUrl?: string;
+  imageUrl?: string;        // legacy single image
+  imageUrls?: string[];     // new: multiple images per message
 }
 
 // ── Chat Photos ─────────────────────────────────────────────────────────────

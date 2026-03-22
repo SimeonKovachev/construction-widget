@@ -22,42 +22,51 @@ export default function MessageList({ messages, theme, apiUrl }: MessageListProp
           key={msg.id}
           style={{
             display: "flex",
-            justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
+            flexDirection: "column",
+            alignItems: msg.role === "user" ? "flex-end" : "flex-start",
+            gap: "6px",
           }}
         >
-          {/* Image message */}
-          {msg.type === "image" && msg.imageUrl ? (
-            <a
-              href={apiUrl + msg.imageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ maxWidth: "80%", display: "block" }}
-            >
-              <img
-                src={apiUrl + msg.imageUrl}
-                alt="Uploaded photo"
-                style={{
-                  maxWidth: "200px",
-                  maxHeight: "200px",
-                  borderRadius: "12px",
-                  objectFit: "cover",
-                  cursor: "pointer",
-                  border: `2px solid ${msg.role === "user" ? theme.primaryColor : "#e5e7eb"}`,
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                  transition: "transform 0.15s, box-shadow 0.15s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "scale(1.03)";
-                  e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.15)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "scale(1)";
-                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
-                }}
-              />
-            </a>
-          ) : (
-            /* Text message */
+          {/* Image thumbnails (if message has images) */}
+          {msg.imageUrls && msg.imageUrls.length > 0 && (
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+              {msg.imageUrls.map((url, i) => (
+                <a
+                  key={i}
+                  href={apiUrl + url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: "block" }}
+                >
+                  <img
+                    src={apiUrl + url}
+                    alt={`Photo ${i + 1}`}
+                    style={{
+                      maxWidth: "180px",
+                      maxHeight: "180px",
+                      borderRadius: "12px",
+                      objectFit: "cover",
+                      cursor: "pointer",
+                      border: `2px solid ${msg.role === "user" ? theme.primaryColor : "#e5e7eb"}`,
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                      transition: "transform 0.15s, box-shadow 0.15s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "scale(1.03)";
+                      e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.15)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "scale(1)";
+                      e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+                    }}
+                  />
+                </a>
+              ))}
+            </div>
+          )}
+
+          {/* Text content (shown alongside or below images, or standalone) */}
+          {(msg.content || msg.streaming) && !(msg.type === "image" && !msg.content) && (
             <div
               style={{
                 maxWidth: "80%",

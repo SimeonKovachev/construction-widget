@@ -30,9 +30,11 @@ public class OpenAiChatService : IOpenAiChatService
     private readonly OpenAIClient                 _openAiClient;
     private readonly OpenAiOptions                _options;
     private readonly ILogger<OpenAiChatService>   _logger;
+    private readonly string                       _webRootPath;
 
     private const int MaxToolRounds = 6;
     private bool _leadSavedThisRequest = false;
+    private List<string>? _pendingImageUrls;  // set during streaming for SaveHistory
 
     private static readonly ChatTool SaveLeadTool = ChatTool.CreateFunctionTool(
         "save_lead",
@@ -68,6 +70,11 @@ public class OpenAiChatService : IOpenAiChatService
         }
         """));
 
+    /// <param name="webRootPath">
+    /// Absolute path to wwwroot — registered in Program.cs via
+    /// <c>builder.Services.AddSingleton(env.WebRootPath)</c> so Infrastructure
+    /// doesn't depend on Microsoft.AspNetCore.Hosting.
+    /// </param>
     public OpenAiChatService(
         IConversationRepository    conversationRepo,
         EstimateService            estimateService,
@@ -77,7 +84,8 @@ public class OpenAiChatService : IOpenAiChatService
         ITenantDocumentRepository  documentRepo,
         OpenAIClient               openAiClient,
         IOptions<OpenAiOptions>    options,
-        ILogger<OpenAiChatService> logger)
+        ILogger<OpenAiChatService> logger,
+        WebRootPathAccessor        webRootPathAccessor)
     {
         _conversationRepo    = conversationRepo;
         _estimateService     = estimateService;
@@ -88,6 +96,7 @@ public class OpenAiChatService : IOpenAiChatService
         _openAiClient        = openAiClient;
         _options             = options.Value;
         _logger              = logger;
+        _webRootPath         = webRootPathAccessor.Path;
     }
 
     private async Task<(string systemPrompt, ChatTool calculatePriceTool)> BuildChatContextAsync(Guid tenantId)
@@ -182,6 +191,17 @@ public class OpenAiChatService : IOpenAiChatService
         sb.AppendLine("3. Confirm: 'Absolutely! I have passed your details to our team — someone will reach out to you shortly.'");
         sb.AppendLine();
 
+        // ── Photo analysis ───────────────────────────────────────────────────
+        sb.AppendLine("=== PHOTO ANALYSIS ===");
+        sb.AppendLine("Customers may send photos of their current windows, doors, fencing, or other products.");
+        sb.AppendLine("When you receive a photo:");
+        sb.AppendLine("1. Describe what you see briefly (type of product, condition, approximate style).");
+        sb.AppendLine("2. If asked about dimensions, explain that exact measurements require a tape measure, but offer your best visual estimate if possible.");
+        sb.AppendLine("3. Use the photo context to make better product recommendations.");
+        sb.AppendLine("4. If the photo is unclear or not related to the products, acknowledge it politely and ask for clarification.");
+        sb.AppendLine("Never say 'I cannot view images' — you CAN see photos sent by customers.");
+        sb.AppendLine();
+
         // ── Emotional intelligence ────────────────────────────────────────────
         sb.AppendLine("=== EMOTIONAL INTELLIGENCE ===");
         sb.AppendLine("If the customer uses ALL CAPS, lots of exclamation marks, or sounds frustrated/angry:");
@@ -211,11 +231,44 @@ public class OpenAiChatService : IOpenAiChatService
 
     public async IAsyncEnumerable<string> StreamResponseAsync(
         Guid tenantId, string sessionId, string userMessage,
+        List<string>? imageUrls = null,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         var (systemPrompt, calculatePriceTool) = await BuildChatContextAsync(tenantId);
         var (history, existingConv)            = await LoadHistoryAsync(tenantId, sessionId, systemPrompt);
-        history.Add(new UserChatMessage(userMessage));
+
+        // Build user message with optional image content parts (gpt-4o vision)
+        var userParts = new List<ChatMessageContentPart>();
+
+        if (!string.IsNullOrWhiteSpace(userMessage))
+            userParts.Add(ChatMessageContentPart.CreateTextPart(userMessage));
+
+        if (imageUrls is { Count: > 0 })
+        {
+            foreach (var imageUrl in imageUrls)
+            {
+                try
+                {
+                    var fullPath = Path.Combine(_webRootPath, imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+                    if (File.Exists(fullPath))
+                    {
+                        var bytes     = await File.ReadAllBytesAsync(fullPath, ct);
+                        var mediaType = GetMediaType(fullPath);
+                        userParts.Add(ChatMessageContentPart.CreateImagePart(
+                            BinaryData.FromBytes(bytes), mediaType));
+                    }
+                }
+                catch (Exception ex) { _logger.LogWarning(ex, "Failed to read image {Url}", imageUrl); }
+            }
+
+            // Store image metadata for history serialization
+            _pendingImageUrls = imageUrls;
+        }
+
+        if (userParts.Count == 0)
+            userParts.Add(ChatMessageContentPart.CreateTextPart(userMessage ?? ""));
+
+        history.Add(new UserChatMessage(userParts));
 
         var chatClient  = _openAiClient.GetChatClient(_options.Model);
         var chatOptions = new ChatCompletionOptions { Tools = { calculatePriceTool, SaveLeadTool, RequestCallbackTool } };
@@ -403,12 +456,25 @@ public class OpenAiChatService : IOpenAiChatService
             var stored = JsonSerializer.Deserialize<List<StoredMessage>>(conversation.MessagesJson) ?? [];
             foreach (var m in stored)
             {
-                // Skip image messages — OpenAI text model can't process them
-                if (m.Type == "image") continue;
-
-                if (m.Role == "user") messages.Add(new UserChatMessage(m.Content));
+                if (m.Role == "user")
+                {
+                    if (m.Type == "image" && m.ImageUrls is { Count: > 0 })
+                    {
+                        // Historical image: include text reference so AI remembers photos were shared
+                        var text = string.IsNullOrWhiteSpace(m.Content) || m.Content == "📷 Photo uploaded"
+                            ? $"[Customer sent {m.ImageUrls.Count} photo(s)]"
+                            : m.Content;
+                        messages.Add(new UserChatMessage(text));
+                    }
+                    else
+                    {
+                        messages.Add(new UserChatMessage(m.Content));
+                    }
+                }
                 else if (m.Role == "assistant" && !string.IsNullOrEmpty(m.Content))
+                {
                     messages.Add(new AssistantChatMessage(m.Content));
+                }
             }
         }
         catch (Exception ex) { _logger.LogWarning(ex, "Failed to deserialize history {SessionId}", sessionId); }
@@ -420,12 +486,37 @@ public class OpenAiChatService : IOpenAiChatService
         Guid tenantId, string sessionId, List<ChatMessage> messages, Conversation? existingConv)
     {
         var stored = new List<StoredMessage>();
+        var imageUrlsUsed = false;
+
         foreach (var m in messages.Skip(1))
         {
             if (m is UserChatMessage u && u.Content.Count > 0)
-                stored.Add(new StoredMessage("user", u.Content[0].Text));
+            {
+                // Gather text from content parts
+                var textParts = u.Content.Where(p => p.Text is not null).Select(p => p.Text);
+                var text = string.Join(" ", textParts);
+
+                // Attach pending image URLs to the LAST user message
+                if (!imageUrlsUsed && _pendingImageUrls is { Count: > 0 })
+                {
+                    // Check if this is the last user message by looking ahead
+                    var remaining = messages.Skip(messages.IndexOf(m) + 1);
+                    var hasMoreUserMsgs = remaining.Any(rm => rm is UserChatMessage);
+
+                    if (!hasMoreUserMsgs)
+                    {
+                        stored.Add(new StoredMessage("user", text, "image", _pendingImageUrls));
+                        imageUrlsUsed = true;
+                        continue;
+                    }
+                }
+
+                stored.Add(new StoredMessage("user", text));
+            }
             else if (m is AssistantChatMessage a && a.Content.Count > 0 && !string.IsNullOrWhiteSpace(a.Content[0].Text))
+            {
                 stored.Add(new StoredMessage("assistant", a.Content[0].Text));
+            }
         }
 
         var json = JsonSerializer.Serialize(stored);
@@ -453,5 +544,18 @@ public class OpenAiChatService : IOpenAiChatService
         public StringBuilder Args { get; }      = new();
     }
 
-    private record StoredMessage(string Role, string Content, string? Type = "text", string? ImageUrl = null);
+    private record StoredMessage(string Role, string Content, string? Type = "text", List<string>? ImageUrls = null);
+
+    private static string GetMediaType(string filePath)
+    {
+        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        return ext switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png"            => "image/png",
+            ".webp"           => "image/webp",
+            ".gif"            => "image/gif",
+            _                 => "image/jpeg",
+        };
+    }
 }

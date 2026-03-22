@@ -6,5 +6,6 @@ public interface IOpenAiChatService
         Guid tenantId,
         string sessionId,
         string userMessage,
+        List<string>? imageUrls = null,
         CancellationToken ct = default);
 }

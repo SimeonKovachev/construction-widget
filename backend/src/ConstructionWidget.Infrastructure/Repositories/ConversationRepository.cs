@@ -132,7 +132,8 @@ public class ConversationRepository : IConversationRepository
                 m.Role ?? "unknown",
                 m.Content ?? "",
                 m.Type ?? "text",
-                m.ImageUrl
+                m.ImageUrl,
+                m.ImageUrls
             )).ToList() ?? [];
         }
         catch
@@ -157,5 +158,6 @@ public class ConversationRepository : IConversationRepository
         public string? Content { get; set; }
         public string? Type { get; set; }
         public string? ImageUrl { get; set; }
+        public List<string>? ImageUrls { get; set; }
     }
 }
