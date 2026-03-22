@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -9,12 +9,15 @@ import {
   createColumnHelper,
   type SortingState,
 } from "@tanstack/react-table";
-import { ChevronUp, ChevronDown, Search, Pencil, Trash2, Check } from "lucide-react";
-import { Lead, LeadStatus, UpdateLeadRequest } from "@/lib/types";
+import { ChevronUp, ChevronDown, Search, Pencil, Trash2, Check, Camera } from "lucide-react";
+import { Lead, LeadStatus, UpdateLeadRequest, ChatPhoto } from "@/lib/types";
 import { leadsService } from "@/lib/services/leadsService";
+import { photoService } from "@/lib/services/photoService";
 import Button from "@/components/ui/Button";
 import IconButton from "@/components/ui/IconButton";
 import { Input, Textarea } from "@/components/ui/Input";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5032";
 
 // ── Status config ──────────────────────────────────────────────────────────────
 const STATUS_META: Record<LeadStatus, { label: string; bg: string; text: string }> = {
@@ -52,6 +55,18 @@ function LeadDrawer({ lead, onClose, onSaved, onDeleted }: DrawerProps) {
   const [deleting, setDeleting]   = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState("");
+  const [photos, setPhotos] = useState<ChatPhoto[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
+
+  useEffect(() => {
+    if (!lead.sessionId) return;
+    setPhotosLoading(true);
+    photoService
+      .getBySession(lead.sessionId)
+      .then(setPhotos)
+      .catch(() => setPhotos([]))
+      .finally(() => setPhotosLoading(false));
+  }, [lead.sessionId]);
 
   async function handleSave() {
     setSaving(true);
@@ -146,6 +161,42 @@ function LeadDrawer({ lead, onClose, onSaved, onDeleted }: DrawerProps) {
             <div className="bg-slate-50 rounded-xl px-4 py-3 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
               {lead.requirements}
             </div>
+          </div>
+
+          {/* Photos */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Camera className="w-3.5 h-3.5" />
+              Photos {photos.length > 0 && `(${photos.length})`}
+            </label>
+            {photosLoading ? (
+              <div className="bg-slate-50 rounded-xl px-4 py-6 text-center">
+                <div className="animate-spin w-5 h-5 border-2 border-slate-300 border-t-blue-500 rounded-full mx-auto" />
+              </div>
+            ) : photos.length === 0 ? (
+              <div className="bg-slate-50 rounded-xl px-4 py-4 text-center">
+                <p className="text-xs text-slate-400">No photos uploaded</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {photos.map((photo) => (
+                  <a
+                    key={photo.id}
+                    href={API_URL + photo.imageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group relative aspect-square rounded-xl overflow-hidden border border-slate-200 hover:border-blue-300 transition-colors"
+                  >
+                    <img
+                      src={API_URL + photo.imageUrl}
+                      alt={photo.fileName}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Quoted price */}

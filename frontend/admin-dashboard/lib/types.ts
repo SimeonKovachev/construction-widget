@@ -10,6 +10,7 @@ export interface Lead {
   status: LeadStatus;
   notes?: string;
   extrasJson?: string;
+  sessionId?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -98,6 +99,18 @@ export interface ConversationDetail {
 export interface ConversationMessage {
   role: string;
   content: string;
+  type?: "text" | "image";
+  imageUrl?: string;
+}
+
+// ── Chat Photos ─────────────────────────────────────────────────────────────
+
+export interface ChatPhoto {
+  id: string;
+  fileName: string;
+  imageUrl: string;
+  fileSizeBytes: number;
+  createdAt: string;
 }
 
 // ── Analytics ────────────────────────────────────────────────────────────────

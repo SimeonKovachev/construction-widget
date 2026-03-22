@@ -6,6 +6,8 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   streaming?: boolean;
+  type?: "text" | "image";
+  imageUrl?: string;
 }
 
 export function useChat(apiUrl: string, tenantId: string) {
@@ -84,5 +86,54 @@ export function useChat(apiUrl: string, tenantId: string) {
     }
   }, [isStreaming, getConnection]);
 
-  return { messages, sendMessage, isStreaming };
+  const sendPhoto = useCallback(async (file: File) => {
+    if (isStreaming) return;
+    setIsStreaming(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("sessionId", sessionId.current);
+
+      const res = await fetch(`${apiUrl}/api/widget/photos`, {
+        method: "POST",
+        headers: { "X-Tenant-ID": tenantId },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Upload failed" }));
+        throw new Error(err.error || "Upload failed");
+      }
+
+      const data = await res.json();
+
+      const userMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: "📷 Photo uploaded",
+        type: "image",
+        imageUrl: data.imageUrl,
+      };
+
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: "Thanks! I've received your photo. Our team will review it along with your inquiry.",
+      };
+
+      setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    } catch (err) {
+      const errorMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: err instanceof Error ? err.message : "Failed to upload photo. Please try again.",
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsStreaming(false);
+    }
+  }, [apiUrl, tenantId, isStreaming]);
+
+  return { messages, sendMessage, sendPhoto, isStreaming };
 }

@@ -27,5 +27,7 @@ public record ConversationDetailDto(
 
 public record ConversationMsgDto(
     string Role,
-    string Content
+    string Content,
+    string? Type = "text",
+    string? ImageUrl = null
 );

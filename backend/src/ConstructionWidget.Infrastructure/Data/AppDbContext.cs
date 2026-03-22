@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<Lead> Leads => Set<Lead>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<TenantDocument> TenantDocuments => Set<TenantDocument>();
+    public DbSet<ChatPhoto> ChatPhotos => Set<ChatPhoto>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -65,6 +66,16 @@ public class AppDbContext : DbContext
 
             // Multi-tenancy filter
             e.HasQueryFilter(d => !_tenantContext.IsResolved || d.TenantId == _tenantContext.TenantId);
+        });
+
+        modelBuilder.Entity<ChatPhoto>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.HasIndex(p => new { p.TenantId, p.SessionId });
+            e.HasOne(p => p.Tenant).WithMany().HasForeignKey(p => p.TenantId);
+
+            // Multi-tenancy filter
+            e.HasQueryFilter(p => !_tenantContext.IsResolved || p.TenantId == _tenantContext.TenantId);
         });
     }
 }

@@ -21,6 +21,7 @@ public class AdminController : ControllerBase
     private readonly ITenantDocumentRepository _documentRepo;
     private readonly IDocumentTextExtractor    _textExtractor;
     private readonly IConversationRepository   _conversationRepo;
+    private readonly IChatPhotoRepository      _photoRepo;
 
     public AdminController(
         ITenantService            tenantService,
@@ -29,7 +30,8 @@ public class AdminController : ControllerBase
         ITenantContext            tenantContext,
         ITenantDocumentRepository documentRepo,
         IDocumentTextExtractor    textExtractor,
-        IConversationRepository   conversationRepo)
+        IConversationRepository   conversationRepo,
+        IChatPhotoRepository      photoRepo)
     {
         _tenantService    = tenantService;
         _priceListService = priceListService;
@@ -38,6 +40,7 @@ public class AdminController : ControllerBase
         _documentRepo     = documentRepo;
         _textExtractor    = textExtractor;
         _conversationRepo = conversationRepo;
+        _photoRepo        = photoRepo;
     }
 
     // ── Analytics ─────────────────────────────────────────────────────────────
@@ -167,6 +170,28 @@ public class AdminController : ControllerBase
     {
         var ok = await _conversationRepo.SetFlagAsync(id, _tenantContext.TenantId, req.IsFlagged);
         return ok ? Ok(new { message = "Flag updated." }) : NotFound();
+    }
+
+    // ── Photos ───────────────────────────────────────────────────────────────
+
+    [HttpGet("photos")]
+    public async Task<IActionResult> GetPhotos([FromQuery] string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+            return BadRequest(new { error = "sessionId query parameter is required." });
+
+        var photos = await _photoRepo.GetBySessionAsync(_tenantContext.TenantId, sessionId);
+
+        var result = photos.Select(p => new
+        {
+            id            = p.Id,
+            fileName      = p.FileName,
+            imageUrl      = $"/uploads/{p.TenantId}/{p.StoredFileName}",
+            fileSizeBytes = p.FileSizeBytes,
+            createdAt     = p.CreatedAt,
+        });
+
+        return Ok(result);
     }
 
     // ── Knowledge Base ──────────────────────────────────────────────────────

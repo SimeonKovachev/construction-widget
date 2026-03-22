@@ -1,7 +1,9 @@
 "use client";
-import { X, Flag, User, Bot } from "lucide-react";
+import { X, Flag, User, Bot, Image as ImageIcon } from "lucide-react";
 import type { ConversationDetail } from "@/lib/types";
 import IconButton from "@/components/ui/IconButton";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5032";
 
 interface TranscriptDrawerProps {
   conversation: ConversationDetail;
@@ -91,7 +93,26 @@ export default function TranscriptDrawer({ conversation, onClose, onToggleFlag }
                     : "bg-slate-100 text-slate-800 rounded-bl-md"
                 }`}
               >
-                <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                {msg.type === "image" && msg.imageUrl ? (
+                  <a
+                    href={API_URL + msg.imageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block"
+                  >
+                    <img
+                      src={API_URL + msg.imageUrl}
+                      alt="Uploaded photo"
+                      className="max-w-[200px] rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
+                    />
+                    <span className="flex items-center gap-1 mt-1 text-xs opacity-70">
+                      <ImageIcon className="w-3 h-3" />
+                      Photo
+                    </span>
+                  </a>
+                ) : (
+                  <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                )}
               </div>
               {msg.role === "user" && (
                 <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 mt-0.5">

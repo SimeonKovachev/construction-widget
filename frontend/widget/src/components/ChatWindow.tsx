@@ -14,7 +14,7 @@ interface ChatWindowProps {
 }
 
 export default function ChatWindow({ tenantId, apiUrl, tenantName, greeting, onClose, theme }: ChatWindowProps) {
-  const { messages, sendMessage, isStreaming } = useChat(apiUrl, tenantId);
+  const { messages, sendMessage, sendPhoto, isStreaming } = useChat(apiUrl, tenantId);
   const positionSide = theme.position === "bottom-left" ? "left" : "right";
   const greetingBg = hexToRgba(theme.primaryColor, 0.06);
   const greetingBorder = hexToRgba(theme.primaryColor, 0.2);
@@ -152,10 +152,10 @@ export default function ChatWindow({ tenantId, apiUrl, tenantName, greeting, onC
       )}
 
       {/* Messages */}
-      <MessageList messages={messages} theme={theme} />
+      <MessageList messages={messages} theme={theme} apiUrl={apiUrl} />
 
       {/* Input */}
-      <InputBar onSend={sendMessage} disabled={isStreaming} theme={theme} />
+      <InputBar onSend={sendMessage} onSendPhoto={sendPhoto} disabled={isStreaming} theme={theme} />
     </div>
   );
 }

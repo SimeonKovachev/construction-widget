@@ -403,6 +403,9 @@ public class OpenAiChatService : IOpenAiChatService
             var stored = JsonSerializer.Deserialize<List<StoredMessage>>(conversation.MessagesJson) ?? [];
             foreach (var m in stored)
             {
+                // Skip image messages — OpenAI text model can't process them
+                if (m.Type == "image") continue;
+
                 if (m.Role == "user") messages.Add(new UserChatMessage(m.Content));
                 else if (m.Role == "assistant" && !string.IsNullOrEmpty(m.Content))
                     messages.Add(new AssistantChatMessage(m.Content));
@@ -450,5 +453,5 @@ public class OpenAiChatService : IOpenAiChatService
         public StringBuilder Args { get; }      = new();
     }
 
-    private record StoredMessage(string Role, string Content);
+    private record StoredMessage(string Role, string Content, string? Type = "text", string? ImageUrl = null);
 }

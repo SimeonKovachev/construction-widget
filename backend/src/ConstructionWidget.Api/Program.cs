@@ -57,6 +57,7 @@ builder.Services.AddScoped<ILeadRepository,            LeadRepository>();
 builder.Services.AddScoped<ITenantRepository,          TenantRepository>();
 builder.Services.AddScoped<IConversationRepository,    ConversationRepository>();
 builder.Services.AddScoped<ITenantDocumentRepository,  TenantDocumentRepository>();
+builder.Services.AddScoped<IChatPhotoRepository,       ChatPhotoRepository>();
 
 // ─── Infrastructure — Services ────────────────────────────────────────────────
 builder.Services.AddScoped<TenantContext>();

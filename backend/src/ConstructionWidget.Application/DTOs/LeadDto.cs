@@ -11,6 +11,7 @@ public record LeadDto(
     string   Status,
     string?  Notes,
     string?  ExtrasJson,
+    string?  SessionId,
     DateTime CreatedAt,
     DateTime? UpdatedAt);
 

@@ -128,8 +128,12 @@ public class ConversationRepository : IConversationRepository
         try
         {
             var messages = JsonSerializer.Deserialize<List<JsonMessage>>(json, JsonOpts);
-            return messages?.Select(m => new ConversationMsgDto(m.Role ?? "unknown", m.Content ?? "")).ToList()
-                   ?? [];
+            return messages?.Select(m => new ConversationMsgDto(
+                m.Role ?? "unknown",
+                m.Content ?? "",
+                m.Type ?? "text",
+                m.ImageUrl
+            )).ToList() ?? [];
         }
         catch
         {
@@ -151,5 +155,7 @@ public class ConversationRepository : IConversationRepository
     {
         public string? Role { get; set; }
         public string? Content { get; set; }
+        public string? Type { get; set; }
+        public string? ImageUrl { get; set; }
     }
 }
