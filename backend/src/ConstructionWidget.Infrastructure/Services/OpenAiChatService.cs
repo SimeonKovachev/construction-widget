@@ -486,37 +486,39 @@ public class OpenAiChatService : IOpenAiChatService
         Guid tenantId, string sessionId, List<ChatMessage> messages, Conversation? existingConv)
     {
         var stored = new List<StoredMessage>();
-        var imageUrlsUsed = false;
 
-        foreach (var m in messages.Skip(1))
+        try
         {
-            if (m is UserChatMessage u && u.Content.Count > 0)
+            var userMessages = messages.Skip(1).OfType<UserChatMessage>().ToList();
+            var lastUserMsg  = userMessages.LastOrDefault();
+
+            foreach (var m in messages.Skip(1))
             {
-                // Gather text from content parts
-                var textParts = u.Content.Where(p => p.Text is not null).Select(p => p.Text);
-                var text = string.Join(" ", textParts);
-
-                // Attach pending image URLs to the LAST user message
-                if (!imageUrlsUsed && _pendingImageUrls is { Count: > 0 })
+                if (m is UserChatMessage u)
                 {
-                    // Check if this is the last user message by looking ahead
-                    var remaining = messages.Skip(messages.IndexOf(m) + 1);
-                    var hasMoreUserMsgs = remaining.Any(rm => rm is UserChatMessage);
+                    var text = ExtractText(u.Content);
 
-                    if (!hasMoreUserMsgs)
+                    // Attach image URLs to the last user message in this request
+                    if (ReferenceEquals(m, lastUserMsg) && _pendingImageUrls is { Count: > 0 })
                     {
                         stored.Add(new StoredMessage("user", text, "image", _pendingImageUrls));
-                        imageUrlsUsed = true;
                         continue;
                     }
-                }
 
-                stored.Add(new StoredMessage("user", text));
+                    stored.Add(new StoredMessage("user", text));
+                }
+                else if (m is AssistantChatMessage a)
+                {
+                    var text = ExtractText(a.Content);
+                    if (!string.IsNullOrWhiteSpace(text))
+                        stored.Add(new StoredMessage("assistant", text));
+                }
+                // ToolChatMessage and other types are intentionally skipped
             }
-            else if (m is AssistantChatMessage a && a.Content.Count > 0 && !string.IsNullOrWhiteSpace(a.Content[0].Text))
-            {
-                stored.Add(new StoredMessage("assistant", a.Content[0].Text));
-            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to build stored messages for {SessionId} — saving raw fallback", sessionId);
         }
 
         var json = JsonSerializer.Serialize(stored);
@@ -545,6 +547,18 @@ public class OpenAiChatService : IOpenAiChatService
     }
 
     private record StoredMessage(string Role, string Content, string? Type = "text", List<string>? ImageUrls = null);
+
+    private static string ExtractText(IList<ChatMessageContentPart>? parts)
+    {
+        if (parts is null || parts.Count == 0) return string.Empty;
+        var sb = new StringBuilder();
+        foreach (var p in parts)
+        {
+            try { if (p.Text is { Length: > 0 } t) sb.Append(t); }
+            catch { /* image or unknown part — skip */ }
+        }
+        return sb.ToString().Trim();
+    }
 
     private static string GetMediaType(string filePath)
     {
