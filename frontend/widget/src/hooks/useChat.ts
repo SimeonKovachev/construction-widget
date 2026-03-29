@@ -1,5 +1,7 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useSignalR } from "./useSignalR";
+import { saveSession } from "../storage/sessionStorage";
+import type { StoredSession } from "../storage/sessionStorage";
 
 export interface ChatMessage {
   id: string;
@@ -16,12 +18,44 @@ export interface PendingImage {
   previewUrl: string;     // object URL for thumbnail preview
 }
 
-export function useChat(apiUrl: string, tenantId: string) {
-  const sessionId = useRef(crypto.randomUUID());
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+export function useChat(
+  apiUrl: string,
+  tenantId: string,
+  initialSession?: StoredSession
+) {
+  const sessionId = useRef(initialSession?.sessionId ?? crypto.randomUUID());
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    initialSession?.messages ?? []
+  );
   const [isStreaming, setIsStreaming] = useState(false);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const { getConnection } = useSignalR(apiUrl, tenantId);
+
+  // ── Auto-save to localStorage after each AI response completes ────────
+  useEffect(() => {
+    // Only save when streaming just stopped AND we have messages
+    if (!isStreaming && messages.length > 0) {
+      const completedMessages = messages.filter((m) => !m.streaming);
+      const firstUserMsg = completedMessages.find((m) => m.role === "user");
+
+      const session: StoredSession = {
+        sessionId: sessionId.current,
+        messages: completedMessages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          type: m.type,
+          imageUrls: m.imageUrls,
+        })),
+        startedAt: initialSession?.startedAt ?? new Date().toISOString(),
+        lastActivity: new Date().toISOString(),
+        preview: (firstUserMsg?.content ?? "").slice(0, 80) || "Conversation",
+      };
+
+      saveSession(tenantId, session);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStreaming]);
 
   // ── Add images to the pending queue (preview before send) ──────────────
   const attachImages = useCallback((files: File[]) => {
@@ -99,7 +133,7 @@ export function useChat(apiUrl: string, tenantId: string) {
       const userMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: "user",
-        content: trimmed || (imageUrls.length > 0 ? "" : ""),
+        content: trimmed || "",
         type: imageUrls.length > 0 ? "image" : "text",
         imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
       };

@@ -21,17 +21,25 @@ public class AnalyticsService : IAnalyticsService
         var conversationsQuery = _db.Conversations.Where(c => c.TenantId == tenantId && c.CreatedAt >= cutoff);
 
         // EF Core DbContext is NOT thread-safe — queries must run sequentially
-        var leadsOverTime = await leadsQuery
+        // Project to anonymous types first — DateTime.ToString(format) is NOT
+        // translatable to SQL by EF Core + Npgsql, so we format dates in memory.
+        var leadsOverTimeRaw = await leadsQuery
             .GroupBy(l => l.CreatedAt.Date)
-            .Select(g => new DateCountDto(g.Key.ToString("yyyy-MM-dd"), g.Count()))
+            .Select(g => new { Date = g.Key, Count = g.Count() })
             .OrderBy(x => x.Date)
             .ToListAsync();
+        var leadsOverTime = leadsOverTimeRaw
+            .Select(x => new DateCountDto(x.Date.ToString("yyyy-MM-dd"), x.Count))
+            .ToList();
 
-        var revenueOverTime = await leadsQuery
+        var revenueOverTimeRaw = await leadsQuery
             .GroupBy(l => l.CreatedAt.Date)
-            .Select(g => new DateRevenueDto(g.Key.ToString("yyyy-MM-dd"), g.Sum(l => l.QuotedPrice)))
+            .Select(g => new { Date = g.Key, Revenue = g.Sum(l => l.QuotedPrice) })
             .OrderBy(x => x.Date)
             .ToListAsync();
+        var revenueOverTime = revenueOverTimeRaw
+            .Select(x => new DateRevenueDto(x.Date.ToString("yyyy-MM-dd"), x.Revenue))
+            .ToList();
 
         var totalConversations = await conversationsQuery.CountAsync();
         var totalLeads         = await leadsQuery.CountAsync();
