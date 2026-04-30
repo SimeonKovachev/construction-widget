@@ -67,14 +67,25 @@ export default function ConversationsPage() {
   }
 
   async function handleToggleFlag(id: string, isFlagged: boolean) {
-    await conversationService.setFlag(id, isFlagged);
-    // Update list
-    setConversations(prev =>
-      prev.map(c => c.id === id ? { ...c, isFlagged } : c)
+    // Optimistic update first
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, isFlagged } : c))
     );
-    // Update drawer if open
     if (selected?.id === id) {
-      setSelected(prev => prev ? { ...prev, isFlagged } : prev);
+      setSelected((prev) => (prev ? { ...prev, isFlagged } : prev));
+    }
+
+    try {
+      await conversationService.setFlag(id, isFlagged);
+    } catch {
+      // Revert optimistic update on failure
+      setConversations((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, isFlagged: !isFlagged } : c))
+      );
+      if (selected?.id === id) {
+        setSelected((prev) => (prev ? { ...prev, isFlagged: !isFlagged } : prev));
+      }
+      setError("Failed to update flag. Please try again.");
     }
   }
 
@@ -235,7 +246,7 @@ export default function ConversationsPage() {
                     {c.hasLead ? (
                       <div className="flex items-center gap-1.5">
                         <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[c.leadStatus ?? "new"]}`}>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[c.leadStatus ?? "new"] ?? STATUS_COLORS.new}`}>
                           {c.leadStatus}
                         </span>
                       </div>

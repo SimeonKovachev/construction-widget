@@ -24,6 +24,7 @@ export default function InputBar({
 }: InputBarProps) {
   const [text, setText] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -113,7 +114,8 @@ export default function InputBar({
   function processFiles(files: File[]) {
     const valid = files.filter((f) => {
       if (f.size > MAX_FILE_SIZE) {
-        alert("File too large. Maximum size is 5 MB.");
+        setFileError("File too large. Maximum size is 5 MB.");
+        setTimeout(() => setFileError(null), 3000);
         return false;
       }
       if (!f.type.startsWith("image/")) return false;
@@ -129,7 +131,8 @@ export default function InputBar({
       const blob = await res.blob();
       if (!blob.type.startsWith("image/")) return null;
       if (blob.size > MAX_FILE_SIZE) {
-        alert("File too large. Maximum size is 5 MB.");
+        setFileError("File too large. Maximum size is 5 MB.");
+        setTimeout(() => setFileError(null), 3000);
         return null;
       }
       return new File([blob], `pasted-${Date.now()}.jpg`, { type: blob.type });
@@ -233,6 +236,23 @@ export default function InputBar({
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Inline file error */}
+      {fileError && (
+        <div
+          style={{
+            margin: "4px 16px 0",
+            padding: "6px 10px",
+            backgroundColor: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: "8px",
+            color: "#dc2626",
+            fontSize: "12px",
+          }}
+        >
+          {fileError}
         </div>
       )}
 

@@ -38,15 +38,22 @@ export function useSignalR(apiUrl: string, tenantId: string) {
       .configureLogging(LogLevel.Warning)
       .build();
 
-    await connection.start();
-    connectionRef.current = connection;
-    connectingRef.current = false;
-    return connection;
+    try {
+      await connection.start();
+      connectionRef.current = connection;
+      connectingRef.current = false;
+      return connection;
+    } catch (err) {
+      connectingRef.current = false;
+      throw err;
+    }
   }, [apiUrl, tenantId]);
 
   useEffect(() => {
     return () => {
-      connectionRef.current?.stop();
+      connectionRef.current?.stop().catch((err) =>
+        console.warn("SignalR stop error:", err)
+      );
     };
   }, []);
 

@@ -71,7 +71,15 @@
       "Bash(npm install:*)",
       "Bash(echo \"EXIT: $?\")",
       "Bash(npx create-next-app@15 superadmin --typescript --tailwind --app --no-src-dir --import-alias \"@/*\" --eslint --no-turbopack --yes)",
-      "Bash(curl -s -X POST http://localhost:5032/api/auth/superadmin/login -H \"Content-Type: application/json\" -d \"{\"\"email\"\":\"\"simetofan@gmail.com\"\",\"\"password\"\":\"\"Simo0449.\"\"}\")"
+      "Bash(curl -s -X POST http://localhost:5032/api/auth/superadmin/login -H \"Content-Type: application/json\" -d \"{\"\"email\"\":\"\"simetofan@gmail.com\"\",\"\"password\"\":\"\"Simo0449.\"\"}\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(find . -not -path */node_modules/* -not -path */.git/* -not -path */bin/* -not -path */obj/*)",
+      "Bash(ls \"D:/Code/custom/construction-widget/frontend/admin-dashboard/app/\\(dashboard\\)/\")",
+      "Bash(npx next:*)",
+      "Bash(find D:Codecustomconstruction-widgetfrontendadmin-dashboard -maxdepth 1 -name tailwind.config.* -o -name next.config.*)",
+      "Bash(find D:Codecustomconstruction-widgetfrontendadmin-dashboardsrc -name *.tsx)"
     ]
   }
 }

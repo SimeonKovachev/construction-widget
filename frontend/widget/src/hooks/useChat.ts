@@ -31,6 +31,14 @@ export function useChat(
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const { getConnection } = useSignalR(apiUrl, tenantId);
 
+  // ── Revoke pending object URLs on unmount to prevent memory leaks ──────
+  useEffect(() => {
+    return () => {
+      clearImages();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Auto-save to localStorage after each AI response completes ────────
   useEffect(() => {
     // Only save when streaming just stopped AND we have messages
@@ -100,8 +108,11 @@ export function useChat(
         body: formData,
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      if (!res.ok) {
+        throw new Error(`Image upload failed (HTTP ${res.status})`);
+      }
+      const data = await res.json();
+      if (data?.imageUrl && typeof data.imageUrl === "string" && data.imageUrl.length > 0) {
         urls.push(data.imageUrl);
       }
     }
@@ -191,7 +202,17 @@ export function useChat(
         });
       });
     } catch {
-      // Connection-level error
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.streaming
+            ? {
+                ...m,
+                content: m.content || "Sorry, something went wrong. Please try again.",
+                streaming: false,
+              }
+            : m
+        )
+      );
     } finally {
       setIsStreaming(false);
     }

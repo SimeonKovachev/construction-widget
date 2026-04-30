@@ -33,8 +33,6 @@ public class OpenAiChatService : IOpenAiChatService
     private readonly string                       _webRootPath;
 
     private const int MaxToolRounds = 6;
-    private bool _leadSavedThisRequest = false;
-    private List<string>? _pendingImageUrls;  // set during streaming for SaveHistory
 
     private static readonly ChatTool SaveLeadTool = ChatTool.CreateFunctionTool(
         "save_lead",
@@ -234,6 +232,9 @@ public class OpenAiChatService : IOpenAiChatService
         List<string>? imageUrls = null,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
+        bool leadSavedThisRequest = false;
+        List<string>? pendingImageUrls = null;
+
         var (systemPrompt, calculatePriceTool) = await BuildChatContextAsync(tenantId);
         var (history, existingConv)            = await LoadHistoryAsync(tenantId, sessionId, systemPrompt);
 
@@ -262,7 +263,7 @@ public class OpenAiChatService : IOpenAiChatService
             }
 
             // Store image metadata for history serialization
-            _pendingImageUrls = imageUrls;
+            pendingImageUrls = imageUrls;
         }
 
         if (userParts.Count == 0)
@@ -323,7 +324,8 @@ public class OpenAiChatService : IOpenAiChatService
                 foreach (var kv in toolMap.OrderBy(x => x.Key))
                 {
                     _logger.LogInformation("Tool '{Tool}' args: {Args}", kv.Value.Name, kv.Value.Args);
-                    var result = await ExecuteToolAsync(tenantId, sessionId, kv.Value.Name, kv.Value.Args.ToString(), ct);
+                    var (result, leadSaved) = await ExecuteToolAsync(tenantId, sessionId, kv.Value.Name, kv.Value.Args.ToString(), leadSavedThisRequest, ct);
+                    leadSavedThisRequest = leadSavedThisRequest || leadSaved;
                     history.Add(new ToolChatMessage(kv.Value.Id, result));
                     yield return $"\n\n[Tool: {kv.Value.Name}]\n";
                 }
@@ -334,11 +336,12 @@ public class OpenAiChatService : IOpenAiChatService
             break;
         }
 
-        await SaveHistoryAsync(tenantId, sessionId, history, existingConv);
+        await SaveHistoryAsync(tenantId, sessionId, history, existingConv, pendingImageUrls);
     }
 
-    private async Task<string> ExecuteToolAsync(
-        Guid tenantId, string sessionId, string toolName, string argsJson, CancellationToken ct)
+    private async Task<(string Result, bool LeadSaved)> ExecuteToolAsync(
+        Guid tenantId, string sessionId, string toolName, string argsJson,
+        bool leadSavedThisRequest, CancellationToken ct)
     {
         try
         {
@@ -348,31 +351,28 @@ public class OpenAiChatService : IOpenAiChatService
                 {
                     var args = JsonSerializer.Deserialize<CalculatePriceArgs>(
                         argsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    if (args is null) return "Error: could not parse calculate_price arguments.";
+                    if (args is null) return ("Error: could not parse calculate_price arguments.", false);
 
                     var price = await _estimateService.CalculatePriceAsync(
                         args.Category, args.Width, args.Height, args.Material, args.Unit);
 
-                    return $"Calculated price: ${price:F2}. (Category: {args.Category}, " +
-                           $"{args.Width}x{args.Height} {args.Unit}, Material: {args.Material})";
+                    return ($"Calculated price: ${price:F2}. (Category: {args.Category}, " +
+                            $"{args.Width}x{args.Height} {args.Unit}, Material: {args.Material})", false);
                 }
 
                 case "save_lead":
                 {
-                    if (_leadSavedThisRequest) return "Lead already saved. Do not call save_lead again.";
+                    if (leadSavedThisRequest) return ("Lead already saved. Do not call save_lead again.", false);
 
                     // Session-level dedup: prevent double-saves across multiple request scopes
                     if (await _leadRepo.ExistsBySessionAsync(tenantId, sessionId))
-                    {
-                        _leadSavedThisRequest = true;
-                        return "Lead already saved for this session. Do not call save_lead again.";
-                    }
+                        return ("Lead already saved for this session. Do not call save_lead again.", true);
 
                     var args = JsonSerializer.Deserialize<SaveLeadArgs>(
                         argsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    if (args is null)                                 return "Error: could not parse save_lead arguments.";
-                    if (string.IsNullOrWhiteSpace(args.CustomerName)) return "Error: customer_name is missing.";
-                    if (string.IsNullOrWhiteSpace(args.Phone))        return "Error: phone is missing.";
+                    if (args is null)                                 return ("Error: could not parse save_lead arguments.", false);
+                    if (string.IsNullOrWhiteSpace(args.CustomerName)) return ("Error: customer_name is missing.", false);
+                    if (string.IsNullOrWhiteSpace(args.Phone))        return ("Error: phone is missing.", false);
 
                     var lead = await _leadRepo.CreateAsync(new Lead
                     {
@@ -385,8 +385,6 @@ public class OpenAiChatService : IOpenAiChatService
                         QuotedPrice  = args.QuotedPrice,
                     });
 
-                    _leadSavedThisRequest = true;
-
                     var tenant = await _tenantRepo.GetByIdAsync(tenantId);
                     if (tenant is not null)
                     {
@@ -397,14 +395,14 @@ public class OpenAiChatService : IOpenAiChatService
                         }, CancellationToken.None);
                     }
 
-                    return $"Lead saved for '{args.CustomerName}' ({args.Phone}).";
+                    return ($"Lead saved for '{args.CustomerName}' ({args.Phone}).", true);
                 }
 
                 case "request_callback":
                 {
                     var args = JsonSerializer.Deserialize<RequestCallbackArgs>(
                         argsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    if (args is null) return "Error: could not parse request_callback arguments.";
+                    if (args is null) return ("Error: could not parse request_callback arguments.", false);
 
                     // Save as escalated lead so it appears prominently in admin dashboard
                     var lead = await _leadRepo.CreateAsync(new Lead
@@ -430,16 +428,16 @@ public class OpenAiChatService : IOpenAiChatService
                         }, CancellationToken.None);
                     }
 
-                    return "Callback request saved and team notified. A team member will reach out to the customer shortly.";
+                    return ("Callback request saved and team notified. A team member will reach out to the customer shortly.", false);
                 }
 
-                default: return $"Unknown tool: {toolName}";
+                default: return ($"Unknown tool: {toolName}", false);
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Tool '{Tool}' failed", toolName);
-            return $"Tool error ({toolName}): {ex.Message}";
+            return ($"Tool error ({toolName}): {ex.Message}", false);
         }
     }
 
@@ -483,7 +481,8 @@ public class OpenAiChatService : IOpenAiChatService
     }
 
     private async Task SaveHistoryAsync(
-        Guid tenantId, string sessionId, List<ChatMessage> messages, Conversation? existingConv)
+        Guid tenantId, string sessionId, List<ChatMessage> messages,
+        Conversation? existingConv, List<string>? pendingImageUrls)
     {
         var stored = new List<StoredMessage>();
 
@@ -499,9 +498,9 @@ public class OpenAiChatService : IOpenAiChatService
                     var text = ExtractText(u.Content);
 
                     // Attach image URLs to the last user message in this request
-                    if (ReferenceEquals(m, lastUserMsg) && _pendingImageUrls is { Count: > 0 })
+                    if (ReferenceEquals(m, lastUserMsg) && pendingImageUrls is { Count: > 0 })
                     {
-                        stored.Add(new StoredMessage("user", text, "image", _pendingImageUrls));
+                        stored.Add(new StoredMessage("user", text, "image", pendingImageUrls));
                         continue;
                     }
 
