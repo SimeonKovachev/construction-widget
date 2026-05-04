@@ -6,11 +6,9 @@ import {
   Zap,
   BarChart3,
   Shield,
-  Clock,
   Code2,
   CheckCircle,
   ArrowRight,
-  TrendingUp,
   Wrench,
   Home,
   Briefcase,
@@ -27,7 +25,7 @@ import {
   PricingSection,
   FAQSection,
   MobileNav,
-  CountUpStat,
+  StatsSection,
   StickyCTA,
   ScrollReveal,
 } from './_client';
@@ -369,11 +367,7 @@ export default function LandingPage() {
 
         {/* ── STATS ──────────────────────────────────────────────────────── */}
         <section className="py-20 px-5 sm:px-8 bg-white" aria-label="Key metrics">
-          <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
-            <CountUpStat value="< 2 min"  label="average setup time"                  icon={Clock}      color="#2563eb" />
-            <CountUpStat value="4.9×"     label="more leads vs. contact forms"         icon={TrendingUp} color="#7c3aed" />
-            <CountUpStat value="< 3 sec"  label="AI response time"                    icon={Zap}        color="#16a34a" />
-          </div>
+          <StatsSection />
         </section>
 
         {/* ── FEATURES BENTO ────────────────────────────────────────────── */}

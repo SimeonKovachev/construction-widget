@@ -158,18 +158,16 @@ export function MobileNav() {
   );
 }
 
-/* ─── Animated counter stat ──────────────────────────────────────────────── */
-export function CountUpStat({
-  value,
-  label,
-  icon: Icon,
-  color,
-}: {
-  value: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties; 'aria-hidden'?: boolean | 'true' | 'false' }>;
-  color: string;
-}) {
+/* ─── Stats section (self-contained — icons defined here, not passed as props) */
+import { Clock, TrendingUp, Zap } from 'lucide-react';
+
+const STATS = [
+  { value: '< 2 min', label: 'average setup time',               Icon: Clock,      color: '#2563eb' },
+  { value: '4.9×',    label: 'more leads vs. contact forms',      Icon: TrendingUp, color: '#7c3aed' },
+  { value: '< 3 sec', label: 'AI response time',                  Icon: Zap,        color: '#16a34a' },
+] as const;
+
+function StatItem({ value, label, Icon, color }: typeof STATS[number]) {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
 
@@ -177,9 +175,7 @@ export function CountUpStat({
     const el = ref.current;
     if (!el) return;
     const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) { setVisible(true); io.disconnect(); }
-      },
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); io.disconnect(); } },
       { threshold: 0.5 },
     );
     io.observe(el);
@@ -198,15 +194,18 @@ export function CountUpStat({
       >
         <Icon className="w-6 h-6" style={{ color }} aria-hidden="true" />
       </div>
-      <div
-        className="text-4xl font-black text-slate-900 transition-all duration-700"
-        style={{ transitionDelay: '150ms' }}
-      >
+      <div className="text-4xl font-black text-slate-900 transition-all duration-700" style={{ transitionDelay: '150ms' }}>
         {value}
       </div>
-      <div className="text-sm text-slate-500 leading-relaxed max-w-[160px] text-center">
-        {label}
-      </div>
+      <div className="text-sm text-slate-500 leading-relaxed max-w-[160px] text-center">{label}</div>
+    </div>
+  );
+}
+
+export function StatsSection() {
+  return (
+    <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+      {STATS.map((s) => <StatItem key={s.value} {...s} />)}
     </div>
   );
 }
