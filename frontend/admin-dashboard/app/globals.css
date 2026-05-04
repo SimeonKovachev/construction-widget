@@ -56,6 +56,25 @@ body {
   100% { background-position:  200% 0; }
 }
 
+@keyframes slideUp {
+  from { transform: translateY(110%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes popIn {
+  0%   { opacity: 0; transform: scale(0.92) translateY(8px); }
+  100% { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+
+@keyframes ctaGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(37,99,235,0.35), 0 4px 12px rgba(37,99,235,0.2); }
+  50%       { box-shadow: 0 0 36px rgba(37,99,235,0.6),  0 4px 20px rgba(37,99,235,0.35); }
+}
+
+.sticky-cta-enter { animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1) forwards; }
+.animate-pop-in   { animation: popIn  0.5s cubic-bezier(0.16,1,0.3,1) forwards; }
+.cta-glow         { animation: ctaGlow 2.4s ease-in-out infinite; }
+
 .animate-blob        { animation: blob  7s ease-in-out infinite; }
 .animate-float       { animation: float 4s ease-in-out infinite; }
 .animation-delay-2   { animation-delay: 2s; }
